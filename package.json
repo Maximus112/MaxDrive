@@ -1,0 +1,31 @@
+{
+  "name": "maxdrive",
+  "version": "1.0.0",
+  "description": "Cloud Storage Application",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maxshugar/MaxDrive.git"
+  },
+  "author": "Max Rochefort-Shugar",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/maxshugar/MaxDrive/issues"
+  },
+  "homepage": "https://github.com/maxshugar/MaxDrive#readme",
+  "dependencies": {
+    "body-parser": "^1.18.3",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "errorhandler": "^1.5.0",
+    "express": "^4.16.4",
+    "express-session": "^1.15.6",
+    "jsonwebtoken": "^8.4.0",
+    "mongoose": "^5.4.1",
+    "nodemon": "^1.18.9",
+    "path": "^0.12.7"
+  }
+}
