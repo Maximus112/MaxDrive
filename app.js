@@ -23,8 +23,13 @@ if(!isProduction){
 	app.use(errorHandler());
 }
 
-		
-mongoose.connect(mongo_url);
+fs.readFile('mongouri.txt', 'utf8', function(err, contents){
+	if(err)
+		console.log(err);
+	else 
+		mongoose.connect(contents, {useNewUrlParser: true});
+});
+
 mongoose.set('debug', true);
 
 require('./models/users');
