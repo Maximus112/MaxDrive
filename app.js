@@ -33,6 +33,8 @@ fs.readFile('mongouri.txt', 'utf8', function(err, contents){
 mongoose.set('debug', true);
 
 require('./models/users');
+require('./config/passport');
+app.use(require('./routes'));
 
 if(!isProduction){
 	app.use( (req, res, err) => {
