@@ -10,7 +10,8 @@ const users_schema = new Schema({
 	salt: String
 });
 
-users_schema.methods.set_password = (password) => {
+users_schema.methods.set_password = function(password) {
+	console.log(this);
 	this.salt = crypto.randomBytes(16).toString('hex');
 	this.hash = crypto.pbkdf2Sync(password, this.salt, 10000, 512, 'sha512').toString('hex');
 }
@@ -20,15 +21,9 @@ users_schema.methods.validate_password = function(password){
 	return this.hash === hash;
 }
 
+/* Generate a JSON web token for the user. */
 users_schema.methods.generate_jwt = function(){
-	const today = new Date();
-	const exp_date = new Date(today);
-	exp_date.setDate(today.getDate + 60);
-	return jwt.sign({
-		email: this.email,
-		id: this._id,
-		exp: parseInt(exp_date.getTime() / 1000)
-	}, 'secret');
+	return (jwt.sign( this.toJSON(), 'secret', { expiresIn: 3600 } ));
 }
 
 users_schema.methods.to_auth_json = function(){
