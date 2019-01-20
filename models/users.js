@@ -34,4 +34,4 @@ users_schema.methods.to_auth_json = function(){
 	};
 }
 
-mongoose.model('Users', users_schema);
+mongoose.model('Users', users_schema, 'users');

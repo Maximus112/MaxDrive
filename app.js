@@ -8,16 +8,10 @@ const errorHandler = require('errorhandler');
 const fs = require('fs');
 const jwt = require('express-jwt');
 
-const getTokenFromHeaders = (req) => {
-	const { headers: { authorization } } = req;
-	if(authorization && authorization.split(' ')[0] == 'Bearer'){
-		return authorization.split(' ')[1];
-	}
-	return null;
-};
-
+/* Middleware
 const auth = {
-	required: jwt({
+	required:
+	jwt({
 		secret: 'secret',
 		userProperty: 'payload',
 		getToken: getTokenFromHeaders
@@ -29,6 +23,7 @@ const auth = {
 		credentialsRequired: false
 	})
 };
+*/
 
 mongoose.promise = global.Promise;
 
@@ -54,11 +49,22 @@ fs.readFile('mongouri.txt', 'utf8', function(err, contents){
 mongoose.set('debug', true);
 
 require('./models/users');
+
 const Users = mongoose.model('Users');
 
 require('./config/passport');
 
-app.post('/api/users/register', (req, res, err) => {
+/* Retrieves all users. Development purposes only. */
+app.get('/api/users', (req, res, next) => {
+	return Users.find({}).select('_id').then((user) =>{
+		if(!user)
+			return res.status(422).sendStatus(400);
+		
+		return res.json(user);
+	});
+});
+
+app.post('/api/users', (req, res, err) => {
 	
 	console.log('register');
 	
@@ -66,7 +72,7 @@ app.post('/api/users/register', (req, res, err) => {
 	
 	if(!user.email){
 		return res.status(422).json({
-			errors:{
+			error:{
 				email: 'is required'
 			}
 		});
@@ -74,7 +80,7 @@ app.post('/api/users/register', (req, res, err) => {
 	
 	if(!user.password){
 		return res.status(422).json({
-			errors:{
+			error:{
 				password: 'is required'
 			}
 		});
@@ -83,16 +89,31 @@ app.post('/api/users/register', (req, res, err) => {
 	const finalUser = new Users(user);
 	finalUser.set_password(user.password);
 	
+	/* Return token. */
 	return finalUser.save()
 		.then(()=> res.json({user: finalUser.to_auth_json()}));
 		
 });
 
-app.post('/api/users/login', (req, res, err) => {
+app.post('/api/login', (req, res, err) => {
 	console.log(1234);
 });
 
-app.get('/api/users/current', auth.required, (req, res, next) => {
+app.get('/api/users/current', (req, res) => {
+	
+	const { headers: { authorization } } = req;
+	if(authorization && authorization.split(' ')[0] == 'Bearer'){
+		jwt({
+			secret: 'secret',
+			userProperty: 'payload',
+			getToken: authorization.split(' ')[1]
+		})
+	}
+	else
+		return res.json({error: "No token provided in headers"});
+	
+	if(req.payload === undefined)
+		return res.json({error: "invalid token"});
 	
 	return Users.findById(req.payload._id).then((user) =>{
 		if(!user){
@@ -102,5 +123,6 @@ app.get('/api/users/current', auth.required, (req, res, next) => {
 	});
 	
 });
+
 
 app.listen(8000, () => console.log('Server running on http://localhost:8000/'));
