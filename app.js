@@ -6,24 +6,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const errorHandler = require('errorhandler');
 const fs = require('fs');
-const jwt = require('express-jwt');
-
-/* Middleware
-const auth = {
-	required:
-	jwt({
-		secret: 'secret',
-		userProperty: 'payload',
-		getToken: getTokenFromHeaders
-	}),
-	optional: jwt({
-		secret: 'secret',
-		userProperty: 'payload',
-		getToken: getTokenFromHeaders,
-		credentialsRequired: false
-	})
-};
-*/
+const jwt = require('jsonwebtoken');
 
 mongoose.promise = global.Promise;
 
@@ -46,7 +29,7 @@ fs.readFile('mongouri.txt', 'utf8', function(err, contents){
 		mongoose.connect(contents, {useNewUrlParser: true});
 });
 
-mongoose.set('debug', true);
+//mongoose.set('debug', true);
 
 require('./models/users');
 
@@ -56,7 +39,7 @@ require('./config/passport');
 
 /* Retrieves all users. Development purposes only. */
 app.get('/api/users', (req, res, next) => {
-	return Users.find({}).select('_id').then((user) =>{
+	return Users.find({}).select('_id email').then((user) =>{
 		if(!user)
 			return res.status(422).sendStatus(400);
 		
@@ -64,13 +47,11 @@ app.get('/api/users', (req, res, next) => {
 	});
 });
 
+/* Create an account. */
 app.post('/api/users', (req, res, err) => {
 	
-	console.log('register');
-	
-	const {body: {user}} = req;
-	
-	if(!user.email){
+	/* Validate email */
+	if(!req.body.email){
 		return res.status(422).json({
 			error:{
 				email: 'is required'
@@ -78,7 +59,8 @@ app.post('/api/users', (req, res, err) => {
 		});
 	}
 	
-	if(!user.password){
+	/* Validate password */
+	if(!req.body.password){
 		return res.status(422).json({
 			error:{
 				password: 'is required'
@@ -86,43 +68,55 @@ app.post('/api/users', (req, res, err) => {
 		});
 	}
 	
-	const finalUser = new Users(user);
-	finalUser.set_password(user.password);
+	/* Check email is unique. */
+	Users.findOne({ 'email' : req.body.email }, function(err, user){
+		if(user)
+			return res.json({error : "Email address is already registered to another user."});
+		else {
+			
+			console.log("email unique");
+			
+			var user = {
+				email: req.body.email,
+				password: req.body.password
+			}
+			
+			const finalUser = new Users(user);
+			finalUser.set_password(req.body.password);
+			console.log(finalUser);
+			/* Return token. */
+			return finalUser.save()
+				.then(()=> res.json({user: finalUser.to_auth_json()}));
+			
+		}
+	});
 	
-	/* Return token. */
-	return finalUser.save()
-		.then(()=> res.json({user: finalUser.to_auth_json()}));
-		
 });
 
 app.post('/api/login', (req, res, err) => {
 	console.log(1234);
 });
 
-app.get('/api/users/current', (req, res) => {
-	
-	const { headers: { authorization } } = req;
-	if(authorization && authorization.split(' ')[0] == 'Bearer'){
-		jwt({
-			secret: 'secret',
-			userProperty: 'payload',
-			getToken: authorization.split(' ')[1]
-		})
-	}
-	else
-		return res.json({error: "No token provided in headers"});
-	
-	if(req.payload === undefined)
-		return res.json({error: "invalid token"});
-	
-	return Users.findById(req.payload._id).then((user) =>{
+app.get('/api/users/current', verify_token, (req, res) => {
+	return Users.findById(req.user_id).then((user) =>{
 		if(!user){
 			return res.sendStatus(400);
 		}
 		return res.json({user: user.to_auth_json() });
 	});
-	
 });
 
+function verify_token(req, res, next){
+	var token = req.headers['x-access-token'];
+	if (!token)
+		return res.status(403).send({ auth: false, message: 'No token provided.' });
+	jwt.verify(token, 'secret', function(err, decoded) {
+		if (err)
+			return res.status(500).send({ auth: false, message: 'Failed to authenticate token.' });
+		//if everything good, save to request for use in other routes
+		req.user_id = decoded._id;
+		next();
+	});
+}
 
 app.listen(8000, () => console.log('Server running on http://localhost:8000/'));
