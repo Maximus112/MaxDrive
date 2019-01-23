@@ -93,8 +93,37 @@ app.post('/api/users', (req, res, err) => {
 	
 });
 
+/* Returns jwt on submission of valid login credentials. */
 app.post('/api/login', (req, res, err) => {
-	console.log(1234);
+	
+	var email = req.body.email;
+	var password = req.body.password;
+	
+	if(!email){
+		return res.status(422).json({
+			errors: {
+				email: 'is required'
+			}
+		});
+	}
+	if(!password){
+		return res.status(422).json({
+			errors: {
+				password: 'is required'
+			}
+		});
+	}
+	
+	Users.findOne({ 'email' : req.body.email }, function(err, user){
+		if(!user || !user.validate_password(password)){
+			return res.json({ error: 'email or password is invalid'});
+		} else {
+			user.token = user.generate_jwt();
+			return res.json({user: user.to_auth_json() });
+		}
+	});
+	
+	
 });
 
 app.get('/api/users/current', verify_token, (req, res) => {
