@@ -16,7 +16,7 @@ app.use(cors());
 app.use(bodyParser.urlencoded({extended: false}));
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(session({ secret: 'passport-tutorial', cookie: { maxAge: 60000 }, resave: false, saveUninitialized: false }));
+//app.use(session({ secret: 'passport-tutorial', cookie: { maxAge: 60000 }, resave: false, saveUninitialized: false }));
 
 app.use(function(err, req, res, next){
 	if(err) return res.json(err);
@@ -34,8 +34,6 @@ fs.readFile('mongouri.txt', 'utf8', function(err, contents){
 require('./models/users');
 
 const Users = mongoose.model('Users');
-
-require('./config/passport');
 
 /* Retrieves all users. Development purposes only. */
 app.get('/api/users', (req, res, next) => {
@@ -124,6 +122,32 @@ app.post('/api/login', (req, res, err) => {
 	});
 	
 	
+});
+
+app.get('/api/users/:id', (req, res) => {
+	
+	if(mongoose.Types.ObjectId.isValid(req.params.id)){
+		var id = mongoose.Types.ObjectId(req.params.id);
+		Users.find({_id: id}, function(err, user){
+			if(!user){
+				return res.json({error: "User with id " + req.params.id + " not found."});
+			} else{
+				return res.json(user);
+			}
+		});
+	} else {
+		return res.json({error: "id '" + req.params.id + "' is invalid."});
+	}
+	
+});
+
+app.get('/api/users', (req, res) => {
+	return Users.find({}).then((user) =>{
+		if(!user){
+			return res.sendStatus(400);
+		}
+		return res.json(user);
+	});
 });
 
 app.get('/api/users/current', verify_token, (req, res) => {
