@@ -29,21 +29,32 @@ fs.readFile('mongouri.txt', 'utf8', function(err, contents){
 		mongoose.connect(contents, {useNewUrlParser: true});
 });
 
-//mongoose.set('debug', true);
-
 require('./models/users');
+require('./models/resources');
 
 const Users = mongoose.model('Users');
+const Resources = mongoose.model('Resources');
 
 /* Retrieves all users. Development purposes only. */
 app.get('/api/users', (req, res, next) => {
-	return Users.find({}).select('_id email').then((user) =>{
-		if(!user)
+	return Users.find({}).select('_id email').then((users) =>{
+		if(users.length === 0)
 			return res.status(422).sendStatus(400);
 		
-		return res.json(user);
+		return res.json(users);
 	});
 });
+
+/*
+app.get('/api/users', (req, res) => {
+	return Users.find({}).then((users) =>{
+		if(users.length === 0){
+			return res.sendStatus(400);
+		}
+		return res.json(users);
+	});
+});
+*/
 
 /* Create an account. */
 app.post('/api/users', (req, res, err) => {
@@ -141,18 +152,61 @@ app.get('/api/users/:id', (req, res) => {
 	
 });
 
-app.get('/api/users', (req, res) => {
-	return Users.find({}).then((user) =>{
-		if(!user){
-			return res.sendStatus(400);
-		}
-		return res.json(user);
-	});
+app.put('/api/users/:id', (req, res) => {
+	
+	if(mongoose.Types.ObjectId.isValid(req.params.id)){
+		var id = mongoose.Types.ObjectId(req.params.id);
+		Users.find({_id: id}, function(err, user){
+			if(user.length === 0){
+				return res.json({error: "User with id " + req.params.id + " not found."});
+			} else{
+				if(req.body.user === undefined)
+					return res.json({error: "Please use {user:{}} in request body."});
+				else {
+					for (attr in req.body.user){
+						/* Don't let salt or hash be updated. */
+						if(attr != 'salt' && attr != 'hash'){	
+							if(attr in user[0]){
+								user[0][attr] = req.body.user[attr];
+							}
+						}
+					}
+					Users.findOneAndUpdate({_id: id}, user[0], {new: true, upsert:true}, function(err, user){
+						if(err) return res.json({error: err});
+						else return res.json(user);
+					});
+				}
+			}
+		});
+	} else {
+		return res.json({error: "id '" + req.params.id + "' is invalid."});
+	}
+	
+});
+
+app.delete('/api/users/:id', (req, res) => {
+	
+	if(mongoose.Types.ObjectId.isValid(req.params.id)){
+		var id = mongoose.Types.ObjectId(req.params.id);
+		Users.find({_id: id}, function(err, user){
+			if(!user){
+				return res.json({error: "User with id " + req.params.id + " not found."});
+			} else{
+				Users.deleteOne({ _id: id }, function (err) {
+				  if (err) return res.json(err);
+				  else return res.json({success: 'User ' + id + ' deleted successfully.'});
+				});
+			}
+		});
+	} else {
+		return res.json({error: "id '" + req.params.id + "' is invalid."});
+	}
+	
 });
 
 app.get('/api/users/current', verify_token, (req, res) => {
 	return Users.findById(req.user_id).then((user) =>{
-		if(!user){
+		if(user.length === 0){
 			return res.sendStatus(400);
 		}
 		return res.json({user: user.to_auth_json() });
@@ -171,5 +225,171 @@ function verify_token(req, res, next){
 		next();
 	});
 }
+
+app.get('/api/resources', (req, res) =>{
+	return Resources.find({}).then((resource) =>{
+		if(resource.length === 0){
+			return res.json({error: 'No resources found.' });
+		}
+		return res.json(resource);
+	});
+});
+
+app.get('/api/resources/:id', (req, res) => {
+	
+	if(mongoose.Types.ObjectId.isValid(req.params.id)){
+		var id = mongoose.Types.ObjectId(req.params.id);
+		Resources.find({_id: id}, function(err, resource){
+			if(resource.length === 0){
+				return res.json({error: "Resources with id " + req.params.id + " not found."});
+			} else{
+				return res.json(resource);
+			}
+		});
+	} else {
+		return res.json({error: "id '" + req.params.id + "' is invalid."});
+	}
+	
+});
+
+app.post('/api/resources', (req, res) =>{
+	
+	if(req.body.resource === undefined)
+		return res.json({error: 'Please pass resource as JSON object in request body.' });
+	
+	/* Validate the resource object. */
+
+	var owner_id = req.body.resource.owner_id;
+	var path = req.body.resource.path;
+	var type = req.body.resource.type;
+	var parent_id = req.body.resource.parent_id;
+	var revisions = req.body.resource.revisions;
+	var sharing = req.body.resource.sharing;
+	var deleted = req.body.resource.deleted;
+	var activity = req.body.resource.activity;
+	
+	if(owner_id === undefined)
+		return res.json({ error: 'resource.owner_id is required.' });
+	if(path === undefined)
+		return res.json({ error: 'resource.path required' });
+	if(type === undefined)
+		return res.json({ error: 'resource.type required' });
+	if(parent_id === undefined)
+		return res.json({ error: 'resource.parent_id required' });
+	if(revisions === undefined)
+		return res.json({ error: 'resource.revisions required' });
+	if(sharing === undefined)
+		return res.json({ error: 'resource.sharing required' });
+	if(sharing.link === undefined)
+		return res.json({ error: 'resource.sharing.link required' });
+	if(sharing.link.url === undefined)
+		return res.json({ error: 'resource.sharing.link.url required' });
+	if(sharing.link.edit === undefined)
+		return res.json({ error: 'resource.sharing.link.edit required' });
+	if(sharing.members === undefined)
+		return res.json({ error: 'resource.sharing.members required' });
+	if(deleted === undefined)
+		return res.json({ error: 'resource.owner_id deleted' });
+	if(activity === undefined)
+		return res.json({ error: 'resource.activity required' });
+	
+	/* Check if owner_id is valid. */
+	if(mongoose.Types.ObjectId.isValid(owner_id)){
+		var id = mongoose.Types.ObjectId(owner_id);
+		Users.find({_id: id}, function(err, user){
+			if(user.length === 0){
+				return res.json({error: "owner_id " + owner_id + " not found."});
+			} else{
+				/* Check if parent_id is valid. */
+				if(parent_id != owner_id){
+					if(mongoose.Types.ObjectId.isValid(parent_id)){
+						id = mongoose.Types.ObjectId(parent_id);
+						Resources.find({_id: id}, function(err, resource){
+							if(resource.length === 0){
+								return res.json({error: " Resource wiith id " + parent_id + " not found."});
+							} else{
+								const resource = new Resources({
+									owner_id: owner_id,
+									path: path,
+									type: type,
+									parent_id: parent_id,
+									revisions: revisions,
+									sharing: sharing,
+									deleted: deleted,
+									activity: activity
+								});
+								return resource.save().then(()=> res.json(resource));
+							}
+						});
+					} else {
+						return res.json({error: "parent_id '" + parent_id + "' is invalid."});
+					}
+				} else {
+					const resource = new Resources({
+						owner_id: owner_id,
+						path: path,
+						type: type,
+						parent_id: parent_id,
+						revisions: revisions,
+						sharing: sharing,
+						deleted: deleted,
+						activity: activity
+					});			
+					return resource.save().then(()=> res.json(resource));
+				}
+			}
+		});
+	} else {
+		return res.json({error: "owner_id '" + owner_id + "' is invalid."});
+	}
+	
+});
+
+/* Update the resource. */
+app.put('/api/resources/:id', (req, res) => {
+	
+	if(mongoose.Types.ObjectId.isValid(req.params.id)){
+		var id = mongoose.Types.ObjectId(req.params.id);
+		Resources.find({_id: id}, function(err, resource){
+			if(resource.length === 0){
+				return res.json({error: "Resource with id " + req.params.id + " not found."});
+			} else{
+				if(req.body.resource === undefined)
+					return res.json({error: "Please use {resource:{}} in request body."});
+				else {
+					/* TODO - Validate the structure of the JSON revisions array. */
+					Resources.findOneAndUpdate({_id: id}, req.body.resource, {new: true, upsert:true}, function(err, resource){
+						if(err) return res.json({error: err});
+						else return res.json(resource);
+					});
+				}
+			}
+		});
+	} else {
+		return res.json({error: "id '" + req.params.id + "' is invalid."});
+	}
+	
+});
+
+/* Delete a resource. */
+app.delete('/api/resources/:id', (req, res) => {
+	
+	if(mongoose.Types.ObjectId.isValid(req.params.id)){
+		var id = mongoose.Types.ObjectId(req.params.id);
+		Resources.find({_id: id}, function(err, resource){
+			if(resource.length == 0){
+				return res.json({error: "Resource with id " + req.params.id + " not found."});
+			} else{
+				Resources.deleteOne({ _id: id }, function (err) {
+				  if (err) return res.json(err);
+				  else return res.json({success: 'Resource ' + id + ' deleted successfully.'});
+				});
+			}
+		});
+	} else {
+		return res.json({error: "id '" + req.params.id + "' is invalid."});
+	}
+	
+});
 
 app.listen(8000, () => console.log('Server running on http://localhost:8000/'));
