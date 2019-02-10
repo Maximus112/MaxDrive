@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css" integrity="sha384-GJzZqFGwb1QTTN6wy59ffF1BuGJpLSa9DkKMp0DgiMDm4iYMj70gZWKYbI706tWS" crossorigin="anonymous">
+
+    <title>MaxDrive</title>
+	
+	<style>
+		html, body {
+			height: 100%;
+		}
+		.fill { 
+			min-height: 100%;
+			height: 100%;
+			background-color: #957bbe; 
+			border-radius: .25rem;
+			background-size: cover;
+		}
+		.vertical-center {
+		  min-height: 100%;  /* Fallback for browsers do NOT support vh unit */
+		  min-height: 100vh; /* These two lines are counted as one :-)       */
+		  display: flex;
+		  align-items: center;
+		}
+		.sidenav {
+		  height: 100%;
+		  width: 250px;
+		  position: fixed;
+		  z-index: 1;
+		  top: 0;
+		  left: 0;
+		  background-color: 	#808080;
+		  overflow-x: hidden;
+		  transition: 0.5s;
+		  
+		}
+		.sidenav a {
+		  padding: 6px 8px 6px 16px;
+		  text-decoration: none;
+		  font-size: 25px;
+		  color: #ffffff;
+		  display: block;
+		  padding: 20px;
+		}
+		.hamburger div{
+		  width: 35px;
+		  height: 5px;
+		  background-color: black;
+		  margin: 6px 0;
+		}
+		.hidden_nav{
+			width: 0px;
+			padding: 0px;
+		}
+		.hidden_main{
+			margin-left: 0px;
+		}
+		#main{
+			margin-left: 250px; /* Reset margin */
+			transition: 0.5s;
+		}
+		.progress{
+			position:absolute; 
+			bottom:0px;
+			width: 80%;
+			margin: 10%;
+		}
+		.progress_desc{
+			position:absolute; 
+			bottom:10px;
+			margin: 20%;
+		}
+		.dot {
+		  height: 5px;
+		  width: 5px;
+		  margin: 2px;
+		  background-color: #bbb;
+		  border-radius: 50%;
+		  display: inline-block;
+		}
+		.more-btn{
+			width: 40px;
+			overflow: auto;
+		}
+		.more-btn:hover > .dot{
+			background-color: red;
+		}
+		
+		@media only screen and (min-width: 768px) {
+		  #open_menu{
+			display: none;
+		  }
+		}
+		
+		@media only screen and (min-width: 992px) {
+		 #action-btn {
+			display: none;
+		  }
+		}
+		#action-menu-lg{
+			margin-top: 100px;
+		}
+	</style>
+	</head>
+	<body>
+	
+	<div id="side_menu" class="sidenav">
+		<a href="#about">Files</a>
+		<a href="#clients">Shared</a>
+		<a href="#contact">Favourites</a>
+		<a href="#contact">Deleted</a>
+		<h6 class="progress_desc">2MB used of 10MB</h6>
+		<div class="progress">
+			<div class="progress-bar" role="progressbar" style="width: 25%;" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100">25%</div>
+		</div>
+	</div>
+	
+	<div id="main">
+		<nav class="navbar navbar-expand-md navbar-light bg-light">
+		  <a class="navbar-brand" id="open_menu" href="#">Menu</a>
+		  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+			<span class="navbar-toggler-icon"></span>
+		  </button>
+		  <div class="collapse navbar-collapse" id="navbarSupportedContent">
+			<ul class="navbar-nav mr-auto"></ul>
+			<form class="form-inline my-2 my-lg-0">
+				
+			  <input class="form-control mr-sm-2" type="search" placeholder="Search" aria-label="Search">
+			  <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Search</button>
+			  <ul class="navbar-nav mr-auto">
+			  <li class="nav-item dropdown">
+				<a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+				  Account
+				</a>
+				<div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
+				  <a class="dropdown-item" href="#">Change Password</a>
+				  <div class="dropdown-divider"></div>
+				  <a class="dropdown-item" href="#">Log Out</a>
+				</div>
+			  </li>
+			</ul>
+			</form>
+		  </div>
+		</nav>
+		
+		<div class="container-fluid">
+			<div class="row">
+				<div class="col-lg-10 col-md-12">
+					<nav aria-label="breadcrumb">
+						<ol class="breadcrumb">
+							<li class="breadcrumb-item"><a href="#">MaxDrive</a></li>
+							<li class="breadcrumb-item"><a href="#">Library</a></li>
+							<li class="breadcrumb-item active" aria-current="page">Data</li>
+						</ol>
+					</nav>
+					<div id="resource-table"></div>
+				</div>
+				<div id="action-menu-lg" class="col d-none d-lg-block">
+					<button type="button" class="btn btn-outline-primary btn-block">Upload Files</button>
+					<button type="button" class="btn btn-outline-primary btn-block">Upload Folder</button>
+					<button type="button" class="btn btn-outline-secondary btn-block">New Shared Folder</button>
+					<button type="button" class="btn btn-outline-secondary btn-block">New Folder</button>
+				</div>
+			  </div>
+		</div>
+</div>
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.6/umd/popper.min.js" integrity="sha384-wHAiFfRlMFy6i5SRaxvfOCifBUQy1xHdJ/yoi7FRNXMRBu5WHdZYu1hA6ZOblgut" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/js/bootstrap.min.js" integrity="sha384-B0UglyR+jN6CkvvICOB2joaf5I4l3gm9GU6Hc1og6Ls7i6U/mkkaduKaBhlAXv9k" crossorigin="anonymous"></script>
+	<script>
+		
+		var side_nav_open = true;
+		
+		document.addEventListener("DOMContentLoaded", function(event) { 
+			if(window.innerWidth < 768) {
+				closeNav();
+			} else if( window.innerWidth >= 768) {
+				openNav();
+			}
+		});
+		
+		window.addEventListener("resize", function(){
+			if(window.innerWidth < 768) {
+				closeNav();
+			} else if( window.innerWidth >= 768) {
+				openNav();
+			}
+		});
+		
+		document.getElementById("open_menu").addEventListener("click", function(){
+			openNav();
+		});
+		
+		window.addEventListener("click", function(event){
+			if(event.target.id !== 'side_menu' && event.target.id !== 'open_menu'){
+				if(window.innerWidth < 768) {
+					closeNav();
+				} 
+			}
+		});
+		
+		/* Set the width of the sidebar to 250px and the left margin of the page content to 250px */
+		function openNav() {
+			side_nav_open=true;
+			document.getElementById("side_menu").style.width = "250px";
+			/* Don't shift main to right on small screen. */
+			if(window.innerWidth >= 768) {
+				document.getElementById("main").style.marginLeft = "250px";
+			}
+		}
+
+		/* Set the width of the sidebar to 0 and the left margin of the page content to 0 */
+		function closeNav() {
+			side_nav_open=false;
+			document.getElementById("side_menu").style.width = "0";
+			document.getElementById("main").style.marginLeft = "0";
+		}
+		
+		var breadcrumbs = ["root"];
+		
+		/* Dummy data used for testing purposes. */
+		var data = {
+			"folder_1":{
+				"guid":1,
+				"type":"folder",
+				"items":{},
+				"members":[{
+					"email":"",
+					"guid":"",
+					"edit":""}
+				],
+				"link":{
+					"url":"",
+					"edit":""
+				}
+			},
+			"file_1":{
+				"guid":2,
+				"type":"file",
+				"members":[{
+					"email":"",
+					"guid":"",
+					"edit":""}
+				],
+				"link":{
+					"url":"",
+					"edit":""
+				}
+			}
+		};
+		
+		const elFactory = (type, attributes, ...children) => {
+		  const el = document.createElement(type)
+
+		  for (key in attributes) {
+			el.setAttribute(key, attributes[key])
+		  }
+
+		  children.forEach(child => {
+			if (typeof child === 'string') {
+			  el.appendChild(document.createTextNode(child))
+			} else {
+			  el.appendChild(child)
+			}
+		  })
+
+		  return el
+		}
+		
+		function datatable(target, headers){
+			
+			this.add_row = function(columns){
+				if(typeof columns === 'undefined') 
+					return console.log("error: missing elements argument");
+				if(columns.length != this.num_col)
+					return console.log("error: num elements must match the number if headers");
+				var dt_row = document.createElement("tr");
+				for(var i = 0; i < columns.length; i++)
+					dt_row.appendChild(elFactory('td', {class: 'text-center'}, columns[i]));
+				var btn = this.generate_action_btn(null, [
+					{"star": function(){console.log('clicked star')}},
+					{"delete": function(){console.log('clicked delete')}},
+					{"rename": function(){console.log('clicked rename')}}
+				]);
+				dt_row.appendChild(btn);
+				document.getElementById(this.target + '-body').appendChild(dt_row);
+			}
+			
+			this.action_btn = function(id){
+			
+				this.add_item = function(name, callback){
+					var item = elFactory('button', {class:'dropdown-item', type:'button', onclick:callback}, name);
+					//this.children[0].appendChild(item);
+					return item;
+				}
+			}
+			
+			this.generate_action_btn = function(id, items){
+				var attr = (id != null) ? { class:'more-btn dropdown-toggle', id: id, 'data-toggle':"dropdown" } : { class:'more-btn dropdown-toggle', 'data-toggle':"dropdown" };
+				var btn = elFactory('div', attr,
+						elFactory('span', {class: 'dot'}),
+						elFactory('span', {class: 'dot'}),
+						elFactory('span', {class: 'dot'}))
+				var inner_div = elFactory('div', {class: 'dropdown-menu dropdown-menu-right'});
+				for(var i = 0; i < items.length; i++){
+					for(prop in items[i]){
+						//items[i][prop]();
+						var item = elFactory('button', {class:'dropdown-item', type:'button'}, prop);
+						item.addEventListener('click', items[i][prop], false);
+						inner_div.appendChild(item);
+					}
+				}
+				var main_div = elFactory('div', {class:'dropdown'}, btn, inner_div);
+				var th = elFactory('th', {class:'text-center', style:'width:10%;'}, main_div);
+				
+				return th;
+			}
+			
+			/* Constructor */
+			if(target === 'undefined')
+				return console.log("error: table target required");
+			this.target = target;
+			this.num_col = headers.length;
+			var dt_row = document.createElement("tr");
+			for(var i = 0; i < headers.length; i++)
+				dt_row.appendChild(elFactory('th', {class: 'text-center'}, headers[i]));
+			dt_row.appendChild(this.generate_action_btn("action-btn", []));
+			var dt = elFactory('table', {class: 'table'}, 
+						elFactory('thead', {}, dt_row), elFactory('tbody', {id: this.target + '-body'})
+					);
+			document.getElementById(target).appendChild(dt);
+		}
+		
+		var table1 = new datatable("resource-table", ["Name", "Type", "Sharing", "Size"]);
+		
+		table1.add_row(["file 1", "file", "private", "10MB"]);
+		table1.add_row(["file 1", "file", "private", "10MB"]);
+		table1.add_row(["file 1", "file", "private", "10MB"]);
+		table1.add_row(["file 1", "file", "private", "10MB"]);
+		
+		//render_resources(data);
+		
+	</script>
+  </body>
+</html>
