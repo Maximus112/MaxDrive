@@ -15,8 +15,10 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.urlencoded({extended: false}));
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname + '/views'));
 //app.use(session({ secret: 'passport-tutorial', cookie: { maxAge: 60000 }, resave: false, saveUninitialized: false }));
+app.engine('html', require('ejs').renderFile);
+app.set('view engine', 'html');
 
 app.use(function(err, req, res, next){
 	if(err) return res.json(err);
@@ -25,7 +27,7 @@ app.use(function(err, req, res, next){
 fs.readFile('mongouri.txt', 'utf8', function(err, contents){
 	if(err)
 		console.log(err);
-	else 
+	else
 		mongoose.connect(contents, {useNewUrlParser: true});
 });
 
@@ -34,6 +36,40 @@ require('./models/resources');
 
 const Users = mongoose.model('Users');
 const Resources = mongoose.model('Resources');
+
+/************************************/
+
+app.get('/',function(req,res) {
+	res.render('landing.html', {name:'max'});
+});
+
+app.get('/register',function(req,res) {
+	res.render('register.html', {name:'max'});
+});
+
+app.get('/login',function(req,res) {
+	res.render('login.html', {name:'max'});
+});
+
+app.get('/resources'/*, verify_token*/ ,function(req,res) {
+	var name = 'hello'; //, {name:name}
+	res.render('resources.html', {name:'max'});
+});
+
+/************************************/
+
+function verify_token(req, res, next){
+	var token = req.headers['x-access-token'];
+	if (!token)
+		return res.status(403).send({ auth: false, message: 'No token provided.' });
+	jwt.verify(token, 'secret', function(err, decoded) {
+		if (err)
+			return res.status(500).send({ auth: false, message: 'Failed to authenticate token.' });
+		//if everything good, save to request for use in other routes
+		req.user_id = decoded._id;
+		next();
+	});
+}
 
 /* Retrieves all users. Development purposes only. */
 app.get('/api/users', (req, res, next) => {
@@ -95,7 +131,7 @@ app.post('/api/users', (req, res, err) => {
 			console.log(finalUser);
 			/* Return token. */
 			return finalUser.save()
-				.then(()=> res.json({user: finalUser.to_auth_json()}));
+				.then(()=> res.json({success: 'Registration complete.'}));
 			
 		}
 	});
@@ -213,18 +249,7 @@ app.get('/api/users/current', verify_token, (req, res) => {
 	});
 });
 
-function verify_token(req, res, next){
-	var token = req.headers['x-access-token'];
-	if (!token)
-		return res.status(403).send({ auth: false, message: 'No token provided.' });
-	jwt.verify(token, 'secret', function(err, decoded) {
-		if (err)
-			return res.status(500).send({ auth: false, message: 'Failed to authenticate token.' });
-		//if everything good, save to request for use in other routes
-		req.user_id = decoded._id;
-		next();
-	});
-}
+
 
 app.get('/api/resources', (req, res) =>{
 	return Resources.find({}).then((resource) =>{

@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 
 const { Schema } = mongoose;
 
-const users_schema = new Schema({
+const resources_schema = new Schema({
 	owner_id: String,
 	path: String,
 	type: String,
@@ -21,4 +21,4 @@ const users_schema = new Schema({
 	activity:[]
 });
 
-mongoose.model('Resources', users_schema, 'resources');
+mongoose.model('Resources', resources_schema, 'resources');
