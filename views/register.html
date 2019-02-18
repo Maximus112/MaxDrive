@@ -52,12 +52,19 @@
 					url: '/api/users',
 					data: {email: document.getElementById('email_input').value, password: password_1},
 					success: function(res){
-						if(typeof res.error !== 'undefined')
+						if(res.error){
 							return $.notify(res.error, "error"); 
-						
-						else 
-							return $.notify(res.success, "success");
-						
+						}
+						//console.log(res);
+						$.notify(res.success, "success"); 
+						window.location.href = '/resources';
+						/*
+						$.notify(res.success, "success"); 
+						sleep(3);
+						if(res.success){
+							return 
+						}
+						*/
 					},
 					dataType: 'json'
 				});

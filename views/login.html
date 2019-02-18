@@ -1,1 +1,58 @@
-<h1>LOGIN</h1>
+<!doctype html>
+<html lang="en">
+	<head>
+		<link rel="shortcut icon" href="/img/logo-icon.png"/>
+		<title>Login - MaxDrive</title>
+		<!-- Bootstrap CSS -->
+		<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css" integrity="sha384-GJzZqFGwb1QTTN6wy59ffF1BuGJpLSa9DkKMp0DgiMDm4iYMj70gZWKYbI706tWS" crossorigin="anonymous">
+	</head>
+	<body>
+		<nav class="navbar navbar-toggleable-sm navbar-inverse bg-inverse">
+			<a class="navbar-brand mx-auto" href="#"><img src="/img/logo.png"></a>
+		</nav>
+		
+		
+		<div class="container">
+			<form>
+				<h1>Login</h1>
+			  <div class="form-group">
+				<label for="exampleInputEmail1">Email address</label>
+				<input id="email_input" type="email" class="form-control" id="exampleInputEmail1" aria-describedby="emailHelp" placeholder="Enter email" required>
+			  </div> 
+			  <div class="form-group">
+				<label>Password</label>
+				<input type="password" class="form-control" id="password_input" placeholder="Password" required>
+			  </div>
+			  <button id="submit_btn" type="button" class="btn btn-primary">Login</button>
+			</form>
+		</div>
+		<script src="/js/jquery.min.js"></script>
+		<script src="/js/notify.min.js"></script>
+		
+		<script>
+
+			
+			document.getElementById('submit_btn').addEventListener('click', function(e){
+				e.preventDefault();
+				$.ajax({
+					type: "POST",
+					url: '/api/login',
+					data: {email: document.getElementById('email_input').value, password: document.getElementById('password_input').value},
+					success: function(res){
+						console.log(res);
+						if(res.error){
+							return $.notify(res.error, "error"); 
+						}
+						
+						//if(res.success){
+							return window.location.href = '/resources';;
+						//}
+					},
+					dataType: 'json'
+				});
+			});
+			
+		</script>
+		
+	</body>
+</html>

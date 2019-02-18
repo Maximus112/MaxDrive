@@ -18,6 +18,8 @@
   "homepage": "https://github.com/maxshugar/MaxDrive#readme",
   "dependencies": {
     "body-parser": "^1.18.3",
+    "cookie-parser": "^1.4.4",
+    "cookie-session": "^2.0.0-beta.3",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
     "ejs": "^2.6.1",
@@ -30,6 +32,8 @@
     "nodemon": "^1.18.9",
     "passport": "^0.4.0",
     "passport-local": "^1.0.0",
-    "path": "^0.12.7"
+    "path": "^0.12.7",
+    "request": "^2.88.0",
+    "uuid": "^3.3.2"
   }
 }

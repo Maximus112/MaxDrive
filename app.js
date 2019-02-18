@@ -1,10 +1,8 @@
 const express = require('express');
-const path = require('path');
 const bodyParser = require('body-parser');
-const session = require('express-session');
+const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const errorHandler = require('errorhandler');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
 
@@ -16,7 +14,6 @@ app.use(cors());
 app.use(bodyParser.urlencoded({extended: false}));
 app.use(bodyParser.json());
 app.use(express.static(__dirname + '/views'));
-//app.use(session({ secret: 'passport-tutorial', cookie: { maxAge: 60000 }, resave: false, saveUninitialized: false }));
 app.engine('html', require('ejs').renderFile);
 app.set('view engine', 'html');
 
@@ -37,6 +34,8 @@ require('./models/resources');
 const Users = mongoose.model('Users');
 const Resources = mongoose.model('Resources');
 
+app.use(cookieParser());
+
 /************************************/
 
 app.get('/',function(req,res) {
@@ -51,15 +50,26 @@ app.get('/login',function(req,res) {
 	res.render('login.html', {name:'max'});
 });
 
-app.get('/resources'/*, verify_token*/ ,function(req,res) {
-	var name = 'hello'; //, {name:name}
-	res.render('resources.html', {name:'max'});
+app.get('/resources', verify_token ,function(req,res) {	
+	if(mongoose.Types.ObjectId.isValid(req.user_id)){
+		var id = mongoose.Types.ObjectId(req.user_id);
+		Users.find({_id: id}, function(err, user){
+			if(!user){
+				return res.json({error: "User with id " + req.user_id + " not found."});
+			} else{
+				return res.render('resources.html', {user:user[0]});
+			}
+		});
+	} else {
+		return res.json({error: "id '" + req.user_id + "' is invalid."});
+	}
 });
 
 /************************************/
 
 function verify_token(req, res, next){
-	var token = req.headers['x-access-token'];
+	//console.log(req.cookies);
+	var token = req.cookies['jwt'];
 	if (!token)
 		return res.status(403).send({ auth: false, message: 'No token provided.' });
 	jwt.verify(token, 'secret', function(err, decoded) {
@@ -80,17 +90,6 @@ app.get('/api/users', (req, res, next) => {
 		return res.json(users);
 	});
 });
-
-/*
-app.get('/api/users', (req, res) => {
-	return Users.find({}).then((users) =>{
-		if(users.length === 0){
-			return res.sendStatus(400);
-		}
-		return res.json(users);
-	});
-});
-*/
 
 /* Create an account. */
 app.post('/api/users', (req, res, err) => {
@@ -128,10 +127,10 @@ app.post('/api/users', (req, res, err) => {
 			
 			const finalUser = new Users(user);
 			finalUser.set_password(req.body.password);
-			console.log(finalUser);
 			/* Return token. */
-			return finalUser.save()
-				.then(()=> res.json({success: 'Registration complete.'}));
+			finalUser.save();
+			return res.cookie('jwt', finalUser.generate_jwt()).json({success: 'Registration complete.'});
+		
 			
 		}
 	});
@@ -163,11 +162,9 @@ app.post('/api/login', (req, res, err) => {
 		if(!user || !user.validate_password(password)){
 			return res.json({ error: 'email or password is invalid'});
 		} else {
-			user.token = user.generate_jwt();
-			return res.json({user: user.to_auth_json() });
+			return res.cookie('jwt', user.generate_jwt()).json({success: 'Registration complete.'});
 		}
 	});
-	
 	
 });
 
