@@ -48,9 +48,9 @@ app.get('/register',function(req,res) {
 
 app.get('/login',function(req,res) {
 	res.render('login.html', {name:'max'});
-});
+});  
 
-app.get('/resources', verify_token ,function(req,res) {	
+app.get('/resources*', verify_token ,function(req,res) {
 	if(mongoose.Types.ObjectId.isValid(req.user_id)){
 		var id = mongoose.Types.ObjectId(req.user_id);
 		Users.find({_id: id}, function(err, user){
@@ -61,23 +61,25 @@ app.get('/resources', verify_token ,function(req,res) {
 			}
 		});
 	} else {
-		return res.json({error: "id '" + req.user_id + "' is invalid."});
+		return res.json({error: "user id '" + req.user_id + "' is invalid."});
 	}
+});
+
+app.get('/logout',function(req,res) {
+	res.render('login.html', {name:'max'});
 });
 
 /************************************/
 
 function verify_token(req, res, next){
-	//console.log(req.cookies);
 	var token = req.cookies['jwt'];
 	if (!token)
-		return res.status(403).send({ auth: false, message: 'No token provided.' });
+		return res.redirect('/login');
 	jwt.verify(token, 'secret', function(err, decoded) {
-		if (err)
-			return res.status(500).send({ auth: false, message: 'Failed to authenticate token.' });
+		if (err) res.redirect('/login');
 		//if everything good, save to request for use in other routes
 		req.user_id = decoded._id;
-		next();
+		return next();
 	});
 }
 
@@ -131,7 +133,6 @@ app.post('/api/users', (req, res, err) => {
 			finalUser.save();
 			return res.cookie('jwt', finalUser.generate_jwt()).json({success: 'Registration complete.'});
 		
-			
 		}
 	});
 	
@@ -160,7 +161,7 @@ app.post('/api/login', (req, res, err) => {
 	
 	Users.findOne({ 'email' : req.body.email }, function(err, user){
 		if(!user || !user.validate_password(password)){
-			return res.json({ error: 'email or password is invalid'});
+			return res.json({ error: 'email or password is incorrect.'});
 		} else {
 			return res.cookie('jwt', user.generate_jwt()).json({success: 'Registration complete.'});
 		}
@@ -208,7 +209,7 @@ app.put('/api/users/:id', (req, res) => {
 						if(err) return res.json({error: err});
 						else return res.json(user);
 					});
-				}
+				}       
 			}
 		});
 	} else {

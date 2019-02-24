@@ -7,7 +7,7 @@
 	<base href="/">
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css" integrity="sha384-GJzZqFGwb1QTTN6wy59ffF1BuGJpLSa9DkKMp0DgiMDm4iYMj70gZWKYbI706tWS" crossorigin="anonymous">
-
+	<link rel="shortcut icon" href="/img/logo-icon.png"/>
 	<link rel="stylesheet" type="text/css" href="css/checkbox.css">
     <title>MaxDrive</title>
 	
@@ -138,7 +138,10 @@
 			<span class="navbar-toggler-icon"></span>
 		</button>
 		  
+		  
+		  
 		  <div class="collapse navbar-collapse" id="navbarSupportedContent">
+		  <a  href="#"><img src="/img/logo.png"></a>
 			<ul class="navbar-nav mr-auto"></ul>
 			<form class="form-inline my-2 my-lg-0">
 				
@@ -152,7 +155,7 @@
 				<div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
 				  <a class="dropdown-item" href="#">Change Password</a>
 				  <div class="dropdown-divider"></div>
-				  <a class="dropdown-item" href="#" onclick="delete_cookie('jwt');">Log Out</a>
+				  <a class="dropdown-item" href="/logout" onclick="delete_cookie('jwt');">Log Out</a>
 				</div>
 			  </li>
 			</ul>
@@ -163,20 +166,15 @@
 		<div class="container-fluid">
 			<div class="row">
 				<div class="col-lg-10 col-md-12">
-					<nav aria-label="breadcrumb">
-						<ol class="breadcrumb">
-							<li class="breadcrumb-item"><a href="#">MaxDrive</a></li>
-							<li class="breadcrumb-item"><a href="#">Library</a></li>
-							<li class="breadcrumb-item active" aria-current="page">Data</li>
-						</ol>
-					</nav>
+					<div id="breadcrumb"></div>
+					
 					<div id="resource-table"></div>
 				</div>
 				<div id="action-menu-lg" class="col d-none d-lg-block">
 					<button type="button" class="btn btn-outline-primary btn-block">Upload Files</button>
 					<button type="button" class="btn btn-outline-primary btn-block">Upload Folder</button>
 					<button type="button" class="btn btn-outline-secondary btn-block">New Shared Folder</button>
-					<button type="button" class="btn btn-outline-secondary btn-block">New Folder</button>
+					<button type="button" class="btn btn-outline-secondary btn-block" onclick="OpenTextModal('Folder', 'Enter your folder name', false, 'Create', CreateFolder, {});">New Folder</button>
 				</div>
 			  </div>
 		</div>
@@ -215,14 +213,20 @@
 		  document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
 		}
 		
+		var breadcrumb = new breadcrumb('breadcrumb');
+		breadcrumb.add("test");
+		breadcrumb.add("new");
+		breadcrumb.remove_last();
 		var datatable = new datatable("resource-table", ["Name", "Type", "Sharing", "Size"]);
+		
 		
 		document.getElementById('open_menu').addEventListener('click', function(){
 			console.log(9);
 			openNav();
 		});
 		
-		document.addEventListener("DOMContentLoaded", function(event) { 
+		document.addEventListener("DOMContentLoaded", function(event) {
+		
 			if(window.innerWidth < 768) {
 				closeNav();
 				datatable.destroy();
@@ -236,6 +240,7 @@
 				datatable.add_row(["file 1", "file", "private", "10MB"]);
 				datatable.add_row(["file 1", "file", "private", "10MB"]);
 			}
+			
 		});
 		
 		window.addEventListener("resize", function(){
@@ -278,8 +283,6 @@
 			document.getElementById("side_menu").style.width = "0";
 			document.getElementById("main").style.marginLeft = "0";
 		}
-		
-		var breadcrumbs = ["root"];
 		
 		/* Dummy data used for testing purposes. */
 		var data = {
@@ -336,10 +339,8 @@
 			}
 			
 			this.action_btn = function(id){
-			
 				this.add_item = function(name, callback){
 					var item = elFactory('button', {class:'dropdown-item', type:'button', onclick:callback}, name);
-					//this.children[0].appendChild(item);
 					return item;
 				}
 			}
@@ -398,6 +399,198 @@
 			}
 			
 			this.init(target, headers);
+		}
+		
+		function breadcrumb(target){
+			
+			this.trace = ['home'];
+			
+			this.add = function(folder){
+				this.trace.push(folder);
+				var href = "/resources";
+				for(var i = 0; i < this.trace.length; i++){
+					href += "/" + this.trace[i];
+				}
+				var breadcrumb = elFactory('li', {class: 'breadcrumb-item'}, elFactory('a', {href:href}, folder))
+				document.getElementById('breadcrumbs').appendChild(breadcrumb);
+			}
+			
+			this.remove_last = function(){
+				var select = document.getElementById('breadcrumbs');
+				select.removeChild(select.lastChild);
+			}
+			
+			/* Constructor */
+			var breadcrumb = elFactory('nav', {}, elFactory('ol', {class: 'breadcrumb', id: 'breadcrumbs'}, 
+				elFactory('li', {class: 'breadcrumb-item'}, elFactory('a', {href:'/resources/home'}, 'home')),
+			));
+			document.getElementById(target).appendChild(breadcrumb);
+			/*
+			<nav aria-label="breadcrumb">
+				<ol class="breadcrumb">
+					<li class="breadcrumb-item"><a href="#">MaxDrive</a></li>
+					<li class="breadcrumb-item"><a href="#">Library</a></li>
+					<li class="breadcrumb-item active" aria-current="page">Data</li>
+				</ol>
+			</nav>
+			*/
+		
+		}
+		
+		/*
+		|--------------------------------------------------------------------------
+		| FUNCTION: OpenTextModal
+		|--------------------------------------------------------------------------
+		|
+		|	Opens a modal with a text box. Invokes callback function on submit.
+		| Appends user input to _ARGS.INPUT
+		|
+		*/
+		function OpenTextModal(_TITLE, _PLACEHOLDER, _TEXT, _BUTTON_TEXT, _CALLBACK, _ARGS) {
+
+		  //CLOSE BUTTON
+		  var SpanTimes = document.createElement('span');
+		  SpanTimes.setAttribute('aria-hidden', 'true');
+		  var text = document.createTextNode('x');
+		  SpanTimes.appendChild(text);
+		  var CLOSE = document.createElement('button');
+		  CLOSE.setAttribute('type', 'button');
+		  CLOSE.setAttribute('class', 'close');
+		  CLOSE.setAttribute('data-dismiss', 'modal');
+		  CLOSE.setAttribute('aria-label', 'Close');
+		  CLOSE.appendChild(SpanTimes);
+
+		  //TITLE
+		  var TITLE = document.createElement('label');
+		  TITLE.setAttribute('for', 'NewDocumentName');
+		  TITLE.setAttribute('class', 'col-form-label');
+		  TITLE.setAttribute('style', 'padding: 10px 0px; color: black; font-weight: normal; font-size: large;');
+		  var text = document.createTextNode(_TITLE);
+		  TITLE.appendChild(text);
+
+		  //INPUT
+		  var INPUT = document.createElement('input');
+		  INPUT.setAttribute('type', 'text');
+		  INPUT.setAttribute('placeholder', _PLACEHOLDER);
+		  INPUT.setAttribute('class', 'form-control');
+		  INPUT.setAttribute('id', 'ModalTextInput');
+		  INPUT.setAttribute('style', 'border: 1px solid gray !important; color:black !important; border-radius: 0; box-shadow: none !important; outline: none !important;');
+		  INPUT.setAttribute('required', 'true');
+		  if (_TEXT) {
+			INPUT.setAttribute('value', _TEXT);
+		  } else {
+			INPUT.setAttribute('value', "");
+		  }
+
+		  //SUBMIT
+		  var BUTTON = document.createElement('input');
+		  BUTTON.setAttribute('type', 'submit');
+		  BUTTON.setAttribute('value', _BUTTON_TEXT);
+		  //BUTTON.setAttribute('style', 'border: none !important; color: white !important; font-weight: bold; position: fixed; right: 0; bottom: 0; margin: 15px; padding: 7px 15px; background: #007bff; font-size: small;');
+		BUTTON.setAttribute('style', 'float: right; border: none !important; color: white !important; font-weight: bold; margin-top: 15px; padding: 7px 15px; background: #007bff; font-size: small;');
+
+
+		  //FORM
+		  var Form = document.createElement('form');
+		  Form.setAttribute('id', 'SubmitTextModal');
+		  Form.appendChild(CLOSE);
+		  Form.appendChild(TITLE);
+		  Form.appendChild(INPUT);
+		  Form.appendChild(BUTTON);
+
+		  //MODAL BODY
+		  var ModalBody = document.createElement('div');
+		  ModalBody.setAttribute('class', 'modal-body');
+		  ModalBody.appendChild(Form);
+
+		  //MODAL CONTENT
+		  var ModalContent = document.createElement('div');
+		  ModalContent.setAttribute('class', 'modal-content');
+		  ModalContent.setAttribute('style', 'border-radius: 0; box-shadow: 0px 0px 10px 1px grey;');
+		  ModalContent.appendChild(ModalBody);
+
+		  //MODAL DIALOG
+		  var ModalDialog = document.createElement('div');
+		  ModalDialog.setAttribute('class', 'modal-dialog');
+		  ModalDialog.setAttribute('style', 'max-width: 350px !important;');
+		  ModalDialog.setAttribute('role', 'document');
+		  ModalDialog.appendChild(ModalContent);
+
+		  //MODAL MASTER
+		  var ModalMaster = document.createElement('div');
+		  ModalMaster.setAttribute('class', 'modal fade');
+		  ModalMaster.setAttribute('style', 'top: 30% !important;');
+		  ModalMaster.setAttribute('id', 'TextModal');
+		  ModalMaster.setAttribute('tabindex', '-1');
+		  ModalMaster.setAttribute('role', 'dialog');
+		  ModalMaster.setAttribute('aria-hidden', 'true');
+		  ModalMaster.appendChild(ModalDialog);
+
+		  $(document.body).append(ModalMaster);
+
+		  //OPEN MODAL
+		  $('#TextModal').modal('toggle');
+		  //INVOKE CALLBACK FUNCTION
+		  $("#SubmitTextModal").submit(function(event) {
+			//STOP PAGE RELOADING
+			event.preventDefault();
+			//GET INPUT
+			var INPUT = document.getElementById("ModalTextInput").value;
+			//CLEAR INPUT
+			document.getElementById("ModalTextInput").value = '';
+			//ARGS
+			_ARGS.INPUT = INPUT;
+			//CALLBACK
+			_CALLBACK(_ARGS);
+			//CLOSE MODAL
+			$('#TextModal').modal('toggle');
+		  });
+		  //DESTROY ON CLOSE
+		  $('#TextModal').on('hidden.bs.modal', function() {
+			var elem = document.querySelector('#TextModal');
+			elem.parentNode.removeChild(elem);
+		  })
+		}
+		
+		function CreateFolder(){
+
+			var current_id = breadcrumb.current_id;
+			var xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function() {
+				if (this.readyState == 4 && this.status == 200) {
+					var xhttp1 = new XMLHttpRequest();
+					console.log(this.responseText);
+					var res_json = JSON.parse(this.responseText);
+					function recursive_find(json, _id, folder){
+						if(_id == 'root'){
+							return json.items.push(folder);
+						}
+						for(resource in json){
+							if(resource._id == _id){
+								resource.items.push(folder);
+							}
+							else if(resource.type == "folder"){
+								recursive_find(resource.items);
+							}
+						}
+						return null;
+					}
+					recursive_find(res_json.resources);
+					xhttp1.onreadystatechange = function() {
+						if (this.readyState == 4 && this.status == 200) {
+							console.log(this.responseText);
+							
+						}
+					};
+					xhttp1.open("PUT", '/api/users/' + user_id, true);
+					xhttp1.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+					xhttp1.send(JSON.stringify(res_json)); 
+			   }
+			};
+			xhttp.open("GET", '/api/users/' + user_id, true);
+			xhttp.send(); 
+		
+			
 		}
 		
 	</script>

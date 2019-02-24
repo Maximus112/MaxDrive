@@ -8,7 +8,7 @@ const users_schema = new Schema({
 	email: String,
 	hash: String,
 	salt: String,
-	resources: {},
+	resources: [],
 	favourites: [],
 	recent: [],
 	shared_with_me: [],
