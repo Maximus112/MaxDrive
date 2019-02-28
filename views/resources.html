@@ -10,7 +10,7 @@
 	<link rel="shortcut icon" href="/img/logo-icon.png"/>
 	<link rel="stylesheet" type="text/css" href="css/checkbox.css">
     <title>MaxDrive</title>
-	
+	<script src="js/resources.js"></script>
 	<style>
 		html, body {
 			height: 100%;
@@ -214,9 +214,6 @@
 		}
 		
 		var breadcrumb = new breadcrumb('breadcrumb');
-		breadcrumb.add("test");
-		breadcrumb.add("new");
-		breadcrumb.remove_last();
 		var datatable = new datatable("resource-table", ["Name", "Type", "Sharing", "Size"]);
 		
 		
@@ -225,22 +222,184 @@
 			openNav();
 		});
 		
-		document.addEventListener("DOMContentLoaded", function(event) {
+		function datatable(target, headers){
+				
+				this.data = null;
+				
+				this.render = function(){
+					this.empty();
+					/* Get user data. */
+					var xhttp = new XMLHttpRequest();
+					xhttp.onreadystatechange = function() {
+						if (this.readyState == 4 && this.status == 200) {
+							var user = JSON.parse(this.responseText);
+							
+							
+							/* Get current folder */
+							var location = window.location.href.split('resources')
+							if(user[0].resources.length == 0){
+								user[0].resources.push({"type": "folder", "items": []});
+								//user[0].resources.length = 0;
+								/* POST */
+								var xmlhttp = new XMLHttpRequest();   // new HttpRequest instance 
+								xmlhttp.open("PUT", "/api/users/" + user_id);
+								xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+								xmlhttp.onreadystatechange = function() {
+									if (this.readyState == 4 && this.status == 200) {
+										console.log(JSON.parse(this.responseText));
+									}
+								}
+								xmlhttp.send(JSON.stringify({"user" : user[0]}));
+								
+							}
+							var folder = user[0].resources[0];
+							//console.log(folder);
+							if(typeof folder != 'undefined'){
+								if(location[1] != ""){
+									/* Find folder */
+									for(var i = 1; i < location.length; i++){
+										if(folder.items[location] !== 'undefined'){
+											folder = folder[location].items;
+										} else {
+											console.log("Folder " + location[i] + " doesn't exist.");
+										}
+									}
+								}
+							}
+							
+							datatable.data = folder;
+							
+							for(var i = 0; i < folder.items.length; i++)
+								datatable.add_row([folder.items[i].name, folder.items[i].type, "private", folder.items[i].size]);
+
+					   }
+					};
+					xhttp.open("GET", '/api/users/' + user_id, true);
+					xhttp.send(); 
+				}
+				
+				/* Resize the table columns based on screen width. */
+				this.resize = function(){
+					
+				}
+				
+				/* Needs to be updated for screen sizing. Need to check for type for action menu. */
+				this.add_row = function(columns){
+					if(typeof columns === 'undefined') 
+						return console.log("error: missing elements argument");
+					if(columns.length != this.num_col)
+						return console.log("error: num elements must match the number if headers");
+					var dt_row = document.createElement("tr");
+					dt_row.appendChild(this.generate_checkbox(function(){
+						console.log("row select");
+					}));
+					for(var i = 0; i < columns.length; i++)
+						dt_row.appendChild(elFactory('td', {}, columns[i]));
+					var btn = this.generate_action_btn(null, [
+						{"star": function(){console.log('clicked star')}},
+						{"delete": function(){console.log('clicked delete')}},
+						{"rename": function(){console.log('clicked rename')}},
+						{"move": function(){console.log('clicked moved')}}
+					]);
+					dt_row.appendChild(btn);
+					document.getElementById(this.target + '-body').appendChild(dt_row);
+				}
+				
+				this.action_btn = function(id){
+					this.add_item = function(name, callback){
+						var item = elFactory('button', {class:'dropdown-item', type:'button', onclick:callback}, name);
+						return item;
+					}
+				}
+				
+				this.generate_action_btn = function(id, items){
+					var attr = (id != null) ? { class:'more-btn', id: id, 'data-toggle':"dropdown" } : { class:'more-btn', 'data-toggle':"dropdown" };
+					var btn = elFactory('div', attr,
+							elFactory('span', {class: 'dot'}),
+							elFactory('span', {class: 'dot'}),
+							elFactory('span', {class: 'dot'}))
+					var inner_div = elFactory('div', {class: 'dropdown-menu dropdown-menu-right'});
+					for(var i = 0; i < items.length; i++){
+						for(prop in items[i]){
+							var item = elFactory('button', {class:'dropdown-item', type:'button'}, prop);
+							item.addEventListener('click', items[i][prop], false);
+							inner_div.appendChild(item);
+						}
+					}
+					var th = elFactory('th', {style:'width:10%;'}, elFactory('div', {class:'dropdown'}, btn, inner_div));
+					
+					return th;
+				}
+				
+				/* Removes all nodes from the table's body. */
+				this.empty = function(){
+					var myNode = document.getElementById(this.target + '-body');
+					while (myNode.firstChild) {
+						myNode.removeChild(myNode.firstChild);
+					}
+				}
+				
+				this.destroy = function(){
+					var element = document.getElementById(this.target);
+					element.removeChild(element.childNodes[0]);
+				}
+				
+				this.generate_checkbox = function(click_event){
+					var checkbox = elFactory('input', {type: 'checkbox'});
+					checkbox.addEventListener('click', click_event);
+					return elFactory('td', {style: "width: 10px;"}, elFactory('label', {class: "container"}, checkbox, elFactory('span', {class: "checkmark"})));
+				}
+				
+				/* Constructor */
+				this.init = function(target, headers){
+					if(target === 'undefined')
+						return console.log("error: table target required");
+					this.target = target;
+					this.num_col = headers.length;
+					var dt_row = document.createElement("tr");
+					dt_row.appendChild(this.generate_checkbox(function(e){
+						console.log(e);
+						console.log("header select");
+					}));
+					for(var i = 0; i < headers.length; i++)
+						dt_row.appendChild(elFactory('th', {}, headers[i]));
+					dt_row.appendChild(this.generate_action_btn("action-btn", [
+					{"Upload Files": function(){console.log('clicked Upload files')}},
+					{"Upload Folder": function(){console.log('clicked Upload folder')}},
+					{"New Shared Folder": function(){console.log('clicked New Shared Folder')}},
+					{"Upload Folder": function(){ OpenTextModal('Folder', 'Enter your folder name', false, 'Create', CreateFolder, {}); }}
+					]));	
+					var dt = elFactory('table', {class: 'table'}, 
+								elFactory('thead', {}, dt_row), elFactory('tbody', {id: this.target + '-body'})
+							);
+					document.getElementById(target).appendChild(dt);
+				}
+				
+				this.init(target, headers);
+			}
 		
+		
+		
+		document.addEventListener("DOMContentLoaded", function(event) {
+			
 			if(window.innerWidth < 768) {
 				closeNav();
+				/*
 				datatable.destroy();
 				datatable.init("resource-table", ["Name"]);
 				datatable.add_row(["Name1232121"]);
+				*/
 			} else if( window.innerWidth >= 768) {
 				openNav();
+				/*
 				datatable.destroy();
 				datatable.init("resource-table", ["Name", "Type", "Sharing", "Size"]);
 				datatable.add_row(["file 1", "file", "private", "10MB"]);
 				datatable.add_row(["file 1", "file", "private", "10MB"]);
 				datatable.add_row(["file 1", "file", "private", "10MB"]);
+				*/
 			}
-			
+			datatable.render();
 		});
 		
 		window.addEventListener("resize", function(){
@@ -315,101 +474,15 @@
 			}
 		};
 		
-		function datatable(target, headers){
-			
-			this.add_row = function(columns){
-				if(typeof columns === 'undefined') 
-					return console.log("error: missing elements argument");
-				if(columns.length != this.num_col)
-					return console.log("error: num elements must match the number if headers");
-				var dt_row = document.createElement("tr");
-				dt_row.appendChild(this.generate_checkbox(function(){
-					console.log("row select");
-				}));
-				for(var i = 0; i < columns.length; i++)
-					dt_row.appendChild(elFactory('td', {}, columns[i]));
-				var btn = this.generate_action_btn(null, [
-					{"star": function(){console.log('clicked star')}},
-					{"delete": function(){console.log('clicked delete')}},
-					{"rename": function(){console.log('clicked rename')}},
-					{"move": function(){console.log('clicked moved')}}
-				]);
-				dt_row.appendChild(btn);
-				document.getElementById(this.target + '-body').appendChild(dt_row);
-			}
-			
-			this.action_btn = function(id){
-				this.add_item = function(name, callback){
-					var item = elFactory('button', {class:'dropdown-item', type:'button', onclick:callback}, name);
-					return item;
-				}
-			}
-			
-			this.generate_action_btn = function(id, items){
-				var attr = (id != null) ? { class:'more-btn', id: id, 'data-toggle':"dropdown" } : { class:'more-btn', 'data-toggle':"dropdown" };
-				var btn = elFactory('div', attr,
-						elFactory('span', {class: 'dot'}),
-						elFactory('span', {class: 'dot'}),
-						elFactory('span', {class: 'dot'}))
-				var inner_div = elFactory('div', {class: 'dropdown-menu dropdown-menu-right'});
-				for(var i = 0; i < items.length; i++){
-					for(prop in items[i]){
-						var item = elFactory('button', {class:'dropdown-item', type:'button'}, prop);
-						item.addEventListener('click', items[i][prop], false);
-						inner_div.appendChild(item);
-					}
-				}
-				var th = elFactory('th', {style:'width:10%;'}, elFactory('div', {class:'dropdown'}, btn, inner_div));
-				
-				return th;
-			}
-			
-			this.destroy = function(){
-				var element = document.getElementById(this.target);
-				element.removeChild(element.childNodes[0]);
-			}
-			
-			this.generate_checkbox = function(click_event){
-				var checkbox = elFactory('input', {type: 'checkbox'});
-				checkbox.addEventListener('click', click_event);
-				return elFactory('td', {style: "width: 10px;"}, elFactory('label', {class: "container"}, checkbox, elFactory('span', {class: "checkmark"})));
-			}
-			
-			/* Constructor */
-			this.init = function(target, headers){
-				if(target === 'undefined')
-					return console.log("error: table target required");
-				this.target = target;
-				this.num_col = headers.length;
-				var dt_row = document.createElement("tr");
-				dt_row.appendChild(this.generate_checkbox(function(e){
-					console.log(e);
-					console.log("header select");
-				}));
-				for(var i = 0; i < headers.length; i++)
-					dt_row.appendChild(elFactory('th', {}, headers[i]));
-				dt_row.appendChild(this.generate_action_btn("action-btn", [
-				{"Upload Files": function(){console.log('clicked Upload files')}},
-				{"Upload Folder": function(){console.log('clicked Upload folder')}}
-				]));	
-				var dt = elFactory('table', {class: 'table'}, 
-							elFactory('thead', {}, dt_row), elFactory('tbody', {id: this.target + '-body'})
-						);
-				document.getElementById(target).appendChild(dt);
-			}
-			
-			this.init(target, headers);
-		}
-		
 		function breadcrumb(target){
 			
-			this.trace = ['home'];
+			this.items = ['home'];
 			
 			this.add = function(folder){
-				this.trace.push(folder);
+				this.items.push(folder);
 				var href = "/resources";
-				for(var i = 0; i < this.trace.length; i++){
-					href += "/" + this.trace[i];
+				for(var i = 0; i < this.items.length; i++){
+					href += "/" + this.items[i];
 				}
 				var breadcrumb = elFactory('li', {class: 'breadcrumb-item'}, elFactory('a', {href:href}, folder))
 				document.getElementById('breadcrumbs').appendChild(breadcrumb);
@@ -552,39 +625,42 @@
 		  })
 		}
 		
-		function CreateFolder(){
+		function CreateFolder(args){
 
 			var current_id = breadcrumb.current_id;
 			var xhttp = new XMLHttpRequest();
 			xhttp.onreadystatechange = function() {
 				if (this.readyState == 4 && this.status == 200) {
-					var xhttp1 = new XMLHttpRequest();
-					console.log(this.responseText);
-					var res_json = JSON.parse(this.responseText);
-					function recursive_find(json, _id, folder){
-						if(_id == 'root'){
-							return json.items.push(folder);
-						}
-						for(resource in json){
-							if(resource._id == _id){
-								resource.items.push(folder);
+					
+					//console.log(this.responseText);
+					var user = JSON.parse(this.responseText);
+					
+					
+					//var folder = JSON.parse(this.responseText)[0].resources;
+					
+					console.log(user);
+					if(breadcrumb.items.length == 1){
+						user[0].resources[0].items.push({"name": args.INPUT, "size": "0MB", "type": "folder"});
+					} else {
+						for(var i = 0; i < breadcrumbs.items.length; i++){
+							if(typeof folder.items[breadcrumbs.items[i]] != 'undefined'){
+								//folder = 
 							}
-							else if(resource.type == "folder"){
-								recursive_find(resource.items);
-							}
 						}
-						return null;
 					}
-					recursive_find(res_json.resources);
+					
+					var xhttp1 = new XMLHttpRequest();
 					xhttp1.onreadystatechange = function() {
 						if (this.readyState == 4 && this.status == 200) {
+							datatable.render();
 							console.log(this.responseText);
-							
 						}
 					};
+					
 					xhttp1.open("PUT", '/api/users/' + user_id, true);
 					xhttp1.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
-					xhttp1.send(JSON.stringify(res_json)); 
+					xhttp1.send(JSON.stringify({"user":user[0]}));
+					
 			   }
 			};
 			xhttp.open("GET", '/api/users/' + user_id, true);
