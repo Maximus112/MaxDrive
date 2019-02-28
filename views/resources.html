@@ -10,7 +10,6 @@
 	<link rel="shortcut icon" href="/img/logo-icon.png"/>
 	<link rel="stylesheet" type="text/css" href="css/checkbox.css">
     <title>MaxDrive</title>
-	<script src="js/resources.js"></script>
 	<style>
 		html, body {
 			height: 100%;
@@ -222,9 +221,11 @@
 			openNav();
 		});
 		
+		/* The datatable class encapsulates all functions needed to create and manipulate a datatable on the DOM. */
 		function datatable(target, headers){
 				
 				this.data = null;
+				this.platform = "";
 				
 				this.render = function(){
 					this.empty();
@@ -287,12 +288,16 @@
 				this.add_row = function(columns){
 					if(typeof columns === 'undefined') 
 						return console.log("error: missing elements argument");
-					if(columns.length != this.num_col)
-						return console.log("error: num elements must match the number if headers");
+					//if(columns.length != this.num_col)
+					//	return console.log("error: num elements must match the number if headers");
 					var dt_row = document.createElement("tr");
 					dt_row.appendChild(this.generate_checkbox(function(){
 						console.log("row select");
 					}));
+					/* One column on mobile. */
+					if(window.innerWidth < 768){
+						columns.length = 1;
+					}
 					for(var i = 0; i < columns.length; i++)
 						dt_row.appendChild(elFactory('td', {}, columns[i]));
 					var btn = this.generate_action_btn(null, [
@@ -361,13 +366,17 @@
 						console.log(e);
 						console.log("header select");
 					}));
+					/* One column on mobile. */
+					if(window.innerWidth < 768){
+						headers.length = 1;
+					}
 					for(var i = 0; i < headers.length; i++)
 						dt_row.appendChild(elFactory('th', {}, headers[i]));
 					dt_row.appendChild(this.generate_action_btn("action-btn", [
 					{"Upload Files": function(){console.log('clicked Upload files')}},
 					{"Upload Folder": function(){console.log('clicked Upload folder')}},
 					{"New Shared Folder": function(){console.log('clicked New Shared Folder')}},
-					{"Upload Folder": function(){ OpenTextModal('Folder', 'Enter your folder name', false, 'Create', CreateFolder, {}); }}
+					{"New Folder": function(){ OpenTextModal('Folder', 'Enter your folder name', false, 'Create', CreateFolder, {}); }}
 					]));	
 					var dt = elFactory('table', {class: 'table'}, 
 								elFactory('thead', {}, dt_row), elFactory('tbody', {id: this.target + '-body'})
@@ -378,26 +387,13 @@
 				this.init(target, headers);
 			}
 		
-		
-		
 		document.addEventListener("DOMContentLoaded", function(event) {
-			
 			if(window.innerWidth < 768) {
 				closeNav();
-				/*
-				datatable.destroy();
-				datatable.init("resource-table", ["Name"]);
-				datatable.add_row(["Name1232121"]);
-				*/
+				datatable.platform = "mobile";
 			} else if( window.innerWidth >= 768) {
 				openNav();
-				/*
-				datatable.destroy();
-				datatable.init("resource-table", ["Name", "Type", "Sharing", "Size"]);
-				datatable.add_row(["file 1", "file", "private", "10MB"]);
-				datatable.add_row(["file 1", "file", "private", "10MB"]);
-				datatable.add_row(["file 1", "file", "private", "10MB"]);
-				*/
+				datatable.platform = "desktop";
 			}
 			datatable.render();
 		});
@@ -405,16 +401,20 @@
 		window.addEventListener("resize", function(){
 			if(window.innerWidth < 768) {
 				closeNav();
-				datatable.destroy();
-				datatable.init("resource-table", ["Name"]);
-				datatable.add_row(["Name1232121"]);
+				if(datatable.platform == "desktop"){
+					datatable.destroy();
+					datatable.init("resource-table", ["Name"]);
+					datatable.platform = "mobile"
+					datatable.render();
+				}
 			} else if( window.innerWidth >= 768) {
 				openNav();
-				datatable.destroy();
-				datatable.init("resource-table", ["Name", "Type", "Sharing", "Size"]);
-				datatable.add_row(["file 1", "file", "private", "10MB"]);
-				datatable.add_row(["file 1", "file", "private", "10MB"]);
-				datatable.add_row(["file 1", "file", "private", "10MB"]);
+				if(datatable.platform == "mobile"){
+					datatable.destroy();
+					datatable.init("resource-table", ["Name", "Type", "Sharing", "Size"]);
+					datatable.platform = "desktop"
+					datatable.render();
+				}
 			}
 		});
 		
@@ -520,8 +520,14 @@
 		|
 		*/
 		function OpenTextModal(_TITLE, _PLACEHOLDER, _TEXT, _BUTTON_TEXT, _CALLBACK, _ARGS) {
-
+			
+			
+			
+			
+			var CLOSE = elFactory('button', {type: "button", class: "close", "data-dismiss": "modal", "aria-label": "Close"}, elFactory('span', {"aria-hidden": "true"}, "x"));
+			
 		  //CLOSE BUTTON
+		  /*
 		  var SpanTimes = document.createElement('span');
 		  SpanTimes.setAttribute('aria-hidden', 'true');
 		  var text = document.createTextNode('x');
@@ -532,6 +538,7 @@
 		  CLOSE.setAttribute('data-dismiss', 'modal');
 		  CLOSE.setAttribute('aria-label', 'Close');
 		  CLOSE.appendChild(SpanTimes);
+		  */
 
 		  //TITLE
 		  var TITLE = document.createElement('label');
