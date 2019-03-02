@@ -173,24 +173,30 @@
 					<button type="button" class="btn btn-outline-primary btn-block">Upload Files</button>
 					<button type="button" class="btn btn-outline-primary btn-block">Upload Folder</button>
 					<button type="button" class="btn btn-outline-secondary btn-block">New Shared Folder</button>
-					<button type="button" class="btn btn-outline-secondary btn-block" onclick="OpenTextModal('Folder', 'Enter your folder name', false, 'Create', CreateFolder, {});">New Folder</button>
+					<button type="button" class="btn btn-outline-secondary btn-block" onclick="generate_text_modal('Folder', 'Enter your folder name', false, 'Create', create_folder, {});">New Folder</button>
 				</div>
 			  </div>
 		</div>
 </div>
     <!-- Optional JavaScript -->
     <!-- jQuery first, then Popper.js, then Bootstrap JS -->
-    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.6/umd/popper.min.js" integrity="sha384-wHAiFfRlMFy6i5SRaxvfOCifBUQy1xHdJ/yoi7FRNXMRBu5WHdZYu1hA6ZOblgut" crossorigin="anonymous"></script>
+    <script src="/js/jquery.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.6/umd/popper.min.js" integrity="sha384-wHAiFfRlMFy6i5SRaxvfOCifBUQy1xHdJ/yoi7FRNXMRBu5WHdZYu1hA6ZOblgut" crossorigin="anonymous"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/js/bootstrap.min.js" integrity="sha384-B0UglyR+jN6CkvvICOB2joaf5I4l3gm9GU6Hc1og6Ls7i6U/mkkaduKaBhlAXv9k" crossorigin="anonymous"></script>
+	<script src="/js/notify.min.js"></script>
+	
 	<script>
+		
+		/* Error Codes:
+			-1: Failed to PUT user basic JSON schema.
+		*/
 		
 		var user_id = "<%= user._id %>";
 		console.log(user_id);
 		
 		var side_nav_open = true;
 		
-		const elFactory = (type, attributes, ...children) => {
+		const el_factory = (type, attributes, ...children) => {
 		  const el = document.createElement(type)
 
 		  for (key in attributes) {
@@ -224,7 +230,6 @@
 		/* The datatable class encapsulates all functions needed to create and manipulate a datatable on the DOM. */
 		function datatable(target, headers){
 				
-				this.data = null;
 				this.platform = "";
 				
 				this.render = function(){
@@ -232,56 +237,62 @@
 					/* Get user data. */
 					var xhttp = new XMLHttpRequest();
 					xhttp.onreadystatechange = function() {
+						/* User data success function. */
 						if (this.readyState == 4 && this.status == 200) {
 							var user = JSON.parse(this.responseText);
 							
-							
-							/* Get current folder */
-							var location = window.location.href.split('resources')
+							/* Add basic JSON schema on users first load. */
 							if(user[0].resources.length == 0){
 								user[0].resources.push({"type": "folder", "items": []});
-								//user[0].resources.length = 0;
 								/* POST */
 								var xmlhttp = new XMLHttpRequest();   // new HttpRequest instance 
 								xmlhttp.open("PUT", "/api/users/" + user_id);
 								xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
 								xmlhttp.onreadystatechange = function() {
-									if (this.readyState == 4 && this.status == 200) {
-										console.log(JSON.parse(this.responseText));
-									}
+									if (this.readyState != 4 || this.status != 200)
+										return $.notify("Something bad happened. Error code -1", "error"); 
 								}
 								xmlhttp.send(JSON.stringify({"user" : user[0]}));
-								
 							}
+							
+							/* Build breadcrumb from url. */
+							var url_breadcrumbs = window.location.href.split('resources')[1].split('/');
+							
+							breadcrumb.reset();
+							
+							for(var i = 1; i < url_breadcrumbs.length; i++){
+								breadcrumb.add(url_breadcrumbs[i]);
+							}
+							
+							console.log(breadcrumb.items);
+							
+							/* Find target folder. */
 							var folder = user[0].resources[0];
-							//console.log(folder);
-							if(typeof folder != 'undefined'){
-								if(location[1] != ""){
-									/* Find folder */
-									for(var i = 1; i < location.length; i++){
-										if(folder.items[location] !== 'undefined'){
-											folder = folder[location].items;
-										} else {
-											console.log("Folder " + location[i] + " doesn't exist.");
-										}
+							var found_flag = false;
+							for(var i = 1; i < breadcrumb.items.length; i++){
+								found_flag = false;
+								/* Has the target folder been reached? */
+								for(var j = 0; j < folder.items.length; j++){
+									if(folder.items[j].name == breadcrumb.items[i]){
+										folder = folder.items[j];
+										found_flag = true;
 									}
 								}
 							}
 							
-							datatable.data = folder;
+							if(breadcrumb.items.length == 1) found_flag = true;
 							
-							for(var i = 0; i < folder.items.length; i++)
-								datatable.add_row([folder.items[i].name, folder.items[i].type, "private", folder.items[i].size]);
-
+							if(found_flag){
+								/* Render the rows. */
+								for(var i = 0; i < folder.items.length; i++)
+									datatable.add_row([folder.items[i].name, folder.items[i].type, "private", folder.items[i].size]);
+							} else {
+								window.location.href = '/resources'
+							}
 					   }
 					};
 					xhttp.open("GET", '/api/users/' + user_id, true);
 					xhttp.send(); 
-				}
-				
-				/* Resize the table columns based on screen width. */
-				this.resize = function(){
-					
 				}
 				
 				/* Needs to be updated for screen sizing. Need to check for type for action menu. */
@@ -299,10 +310,13 @@
 						columns.length = 1;
 					}
 					for(var i = 0; i < columns.length; i++)
-						dt_row.appendChild(elFactory('td', {}, columns[i]));
+						dt_row.appendChild(el_factory('td', {}, columns[i]));
 					var btn = this.generate_action_btn(null, [
 						{"star": function(){console.log('clicked star')}},
-						{"delete": function(){console.log('clicked delete')}},
+						{"delete": function(){console.log('clicked delete');
+							//console.log();
+							delete_resource(this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML);
+						}},
 						{"rename": function(){console.log('clicked rename')}},
 						{"move": function(){console.log('clicked moved')}}
 					]);
@@ -312,26 +326,26 @@
 				
 				this.action_btn = function(id){
 					this.add_item = function(name, callback){
-						var item = elFactory('button', {class:'dropdown-item', type:'button', onclick:callback}, name);
+						var item = el_factory('button', {class:'dropdown-item', type:'button', onclick:callback}, name);
 						return item;
 					}
 				}
 				
 				this.generate_action_btn = function(id, items){
 					var attr = (id != null) ? { class:'more-btn', id: id, 'data-toggle':"dropdown" } : { class:'more-btn', 'data-toggle':"dropdown" };
-					var btn = elFactory('div', attr,
-							elFactory('span', {class: 'dot'}),
-							elFactory('span', {class: 'dot'}),
-							elFactory('span', {class: 'dot'}))
-					var inner_div = elFactory('div', {class: 'dropdown-menu dropdown-menu-right'});
+					var btn = el_factory('div', attr,
+							el_factory('span', {class: 'dot'}),
+							el_factory('span', {class: 'dot'}),
+							el_factory('span', {class: 'dot'}))
+					var inner_div = el_factory('div', {class: 'dropdown-menu dropdown-menu-right'});
 					for(var i = 0; i < items.length; i++){
 						for(prop in items[i]){
-							var item = elFactory('button', {class:'dropdown-item', type:'button'}, prop);
+							var item = el_factory('button', {class:'dropdown-item', type:'button'}, prop);
 							item.addEventListener('click', items[i][prop], false);
 							inner_div.appendChild(item);
 						}
 					}
-					var th = elFactory('th', {style:'width:10%;'}, elFactory('div', {class:'dropdown'}, btn, inner_div));
+					var th = el_factory('th', {style:'width:10%;'}, el_factory('div', {class:'dropdown'}, btn, inner_div));
 					
 					return th;
 				}
@@ -350,9 +364,9 @@
 				}
 				
 				this.generate_checkbox = function(click_event){
-					var checkbox = elFactory('input', {type: 'checkbox'});
+					var checkbox = el_factory('input', {type: 'checkbox'});
 					checkbox.addEventListener('click', click_event);
-					return elFactory('td', {style: "width: 10px;"}, elFactory('label', {class: "container"}, checkbox, elFactory('span', {class: "checkmark"})));
+					return el_factory('td', {style: "width: 10px;"}, el_factory('label', {class: "container"}, checkbox, el_factory('span', {class: "checkmark"})));
 				}
 				
 				/* Constructor */
@@ -371,15 +385,15 @@
 						headers.length = 1;
 					}
 					for(var i = 0; i < headers.length; i++)
-						dt_row.appendChild(elFactory('th', {}, headers[i]));
+						dt_row.appendChild(el_factory('th', {}, headers[i]));
 					dt_row.appendChild(this.generate_action_btn("action-btn", [
 					{"Upload Files": function(){console.log('clicked Upload files')}},
 					{"Upload Folder": function(){console.log('clicked Upload folder')}},
 					{"New Shared Folder": function(){console.log('clicked New Shared Folder')}},
-					{"New Folder": function(){ OpenTextModal('Folder', 'Enter your folder name', false, 'Create', CreateFolder, {}); }}
+					{"New Folder": function(){ generate_text_modal('Folder', 'Enter your folder name', false, 'Create', create_folder, {}); }}
 					]));	
-					var dt = elFactory('table', {class: 'table'}, 
-								elFactory('thead', {}, dt_row), elFactory('tbody', {id: this.target + '-body'})
+					var dt = el_factory('table', {class: 'table'}, 
+								el_factory('thead', {}, dt_row), el_factory('tbody', {id: this.target + '-body'})
 							);
 					document.getElementById(target).appendChild(dt);
 				}
@@ -422,7 +436,17 @@
 			if(event.target.id !== 'side_menu' && event.target.id !== 'open_menu'){
 				if(window.innerWidth < 768) {
 					closeNav();
-				} 
+				}
+			}
+			//console.log(event);
+			if(event.target.tagName == 'TD'){
+				var href = "";
+				for(var i = 0; i < breadcrumb.items.length; i++){
+						href += '/' + breadcrumb.items[i];
+				}
+				href += '/' + event.target.parentNode.childNodes[1].innerHTML;
+				console.log(href);
+				window.location.href = href;
 			}
 		});
 		
@@ -476,15 +500,24 @@
 		
 		function breadcrumb(target){
 			
-			this.items = ['home'];
+			this.items = ['resources'];
+			
+			this.reset = function(){
+				this.items.length = 1;
+				var select = document.getElementById('breadcrumbs');
+				while(select.firstChild)
+					select.removeChild(select.firstChild);
+				var breadcrumb = el_factory('li', {class: 'breadcrumb-item'}, el_factory('a', {href:'/resources'}, 'resources'));
+				document.getElementById('breadcrumbs').appendChild(breadcrumb);
+			}
 			
 			this.add = function(folder){
 				this.items.push(folder);
-				var href = "/resources";
+				var href = "";
 				for(var i = 0; i < this.items.length; i++){
 					href += "/" + this.items[i];
 				}
-				var breadcrumb = elFactory('li', {class: 'breadcrumb-item'}, elFactory('a', {href:href}, folder))
+				var breadcrumb = el_factory('li', {class: 'breadcrumb-item'}, el_factory('a', {href:href}, folder))
 				document.getElementById('breadcrumbs').appendChild(breadcrumb);
 			}
 			
@@ -494,176 +527,117 @@
 			}
 			
 			/* Constructor */
-			var breadcrumb = elFactory('nav', {}, elFactory('ol', {class: 'breadcrumb', id: 'breadcrumbs'}, 
-				elFactory('li', {class: 'breadcrumb-item'}, elFactory('a', {href:'/resources/home'}, 'home')),
-			));
-			document.getElementById(target).appendChild(breadcrumb);
-			/*
-			<nav aria-label="breadcrumb">
-				<ol class="breadcrumb">
-					<li class="breadcrumb-item"><a href="#">MaxDrive</a></li>
-					<li class="breadcrumb-item"><a href="#">Library</a></li>
-					<li class="breadcrumb-item active" aria-current="page">Data</li>
-				</ol>
-			</nav>
-			*/
+			this.init = function(){
+				
+				var breadcrumb = el_factory('nav', {}, el_factory('ol', {class: 'breadcrumb', id: 'breadcrumbs'}, 
+					el_factory('li', {class: 'breadcrumb-item'}, el_factory('a', {href:'/resources'}, 'resources')),
+				));
+				document.getElementById(target).appendChild(breadcrumb);
+			}
+			
+			this.init();
 		
 		}
 		
 		/*
 		|--------------------------------------------------------------------------
-		| FUNCTION: OpenTextModal
+		| FUNCTION: generate_text_modal
 		|--------------------------------------------------------------------------
 		|
-		|	Opens a modal with a text box. Invokes callback function on submit.
-		| Appends user input to _ARGS.INPUT
+		|	Generates and opens a modal with a text box. Invokes callback function on submit.
+		| 	Appends user input to callback _ARGS.INPUT
 		|
 		*/
-		function OpenTextModal(_TITLE, _PLACEHOLDER, _TEXT, _BUTTON_TEXT, _CALLBACK, _ARGS) {
+		function generate_text_modal(_TITLE, _PLACEHOLDER, _TEXT, _BUTTON_TEXT, _CALLBACK, _ARGS) {
 			
+			/* Generate Close Button. */
+			var close_btn = el_factory('button', {type: "button", class: "close", "data-dismiss": "modal", "aria-label": "Close"}, el_factory('span', {"aria-hidden": "true"}, "x"));
 			
+			/* Generate Title. */
+			var title = el_factory('label', {for: 'NewDocumentName', class: 'col-form-label', style: 'padding: 10px 0px; color: black; font-weight: normal; font-size: large;'}, _TITLE);
+
+			/* Generate Input. */
+			if (!_TEXT)
+				_TEXT = "";
+			var style = 'border: 1px solid gray !important; color:black !important; border-radius: 0; box-shadow: none !important; outline: none !important;';
+			var input = el_factory('input', {type: 'text', placeholder: _PLACEHOLDER, class: 'form-control', id: 'modal_text_input', required: 'true', value: _TEXT, style: style});
+	
+			/* Generate Submit Button. */
+			style = 'float: right; border: none !important; color: white !important; font-weight: bold; margin-top: 15px; padding: 7px 15px; background: #007bff; font-size: small;';
+			var submit_btn = el_factory('input', {type: 'submit', 'value': _BUTTON_TEXT, style: style});
+		
+			/* Generate Form. */
+			var form = el_factory('form', {id: 'modal_form'}, close_btn, title, input, submit_btn);
 			
-			
-			var CLOSE = elFactory('button', {type: "button", class: "close", "data-dismiss": "modal", "aria-label": "Close"}, elFactory('span', {"aria-hidden": "true"}, "x"));
-			
-		  //CLOSE BUTTON
-		  /*
-		  var SpanTimes = document.createElement('span');
-		  SpanTimes.setAttribute('aria-hidden', 'true');
-		  var text = document.createTextNode('x');
-		  SpanTimes.appendChild(text);
-		  var CLOSE = document.createElement('button');
-		  CLOSE.setAttribute('type', 'button');
-		  CLOSE.setAttribute('class', 'close');
-		  CLOSE.setAttribute('data-dismiss', 'modal');
-		  CLOSE.setAttribute('aria-label', 'Close');
-		  CLOSE.appendChild(SpanTimes);
-		  */
+			/* Generate Modal. */
+			var modal = el_factory('div', {class: 'modal fade', style: 'top: 30% !important;', id: 'text_modal', tabindex: '-1', role: 'dialog', 'aria-hidden': 'true'},
+				el_factory('div', {class: 'modal-dialog', style: 'max-width: 350px !important;', role: 'document'},
+					el_factory('div', {class: 'modal-content', style: 'border-radius: 0; box-shadow: 0px 0px 10px 1px grey;'},
+						el_factory('div', {class: 'modal-body'}, form)
+					)
+				)
+			);
+	
+		  $(document.body).append(modal);
 
-		  //TITLE
-		  var TITLE = document.createElement('label');
-		  TITLE.setAttribute('for', 'NewDocumentName');
-		  TITLE.setAttribute('class', 'col-form-label');
-		  TITLE.setAttribute('style', 'padding: 10px 0px; color: black; font-weight: normal; font-size: large;');
-		  var text = document.createTextNode(_TITLE);
-		  TITLE.appendChild(text);
-
-		  //INPUT
-		  var INPUT = document.createElement('input');
-		  INPUT.setAttribute('type', 'text');
-		  INPUT.setAttribute('placeholder', _PLACEHOLDER);
-		  INPUT.setAttribute('class', 'form-control');
-		  INPUT.setAttribute('id', 'ModalTextInput');
-		  INPUT.setAttribute('style', 'border: 1px solid gray !important; color:black !important; border-radius: 0; box-shadow: none !important; outline: none !important;');
-		  INPUT.setAttribute('required', 'true');
-		  if (_TEXT) {
-			INPUT.setAttribute('value', _TEXT);
-		  } else {
-			INPUT.setAttribute('value', "");
-		  }
-
-		  //SUBMIT
-		  var BUTTON = document.createElement('input');
-		  BUTTON.setAttribute('type', 'submit');
-		  BUTTON.setAttribute('value', _BUTTON_TEXT);
-		  //BUTTON.setAttribute('style', 'border: none !important; color: white !important; font-weight: bold; position: fixed; right: 0; bottom: 0; margin: 15px; padding: 7px 15px; background: #007bff; font-size: small;');
-		BUTTON.setAttribute('style', 'float: right; border: none !important; color: white !important; font-weight: bold; margin-top: 15px; padding: 7px 15px; background: #007bff; font-size: small;');
-
-
-		  //FORM
-		  var Form = document.createElement('form');
-		  Form.setAttribute('id', 'SubmitTextModal');
-		  Form.appendChild(CLOSE);
-		  Form.appendChild(TITLE);
-		  Form.appendChild(INPUT);
-		  Form.appendChild(BUTTON);
-
-		  //MODAL BODY
-		  var ModalBody = document.createElement('div');
-		  ModalBody.setAttribute('class', 'modal-body');
-		  ModalBody.appendChild(Form);
-
-		  //MODAL CONTENT
-		  var ModalContent = document.createElement('div');
-		  ModalContent.setAttribute('class', 'modal-content');
-		  ModalContent.setAttribute('style', 'border-radius: 0; box-shadow: 0px 0px 10px 1px grey;');
-		  ModalContent.appendChild(ModalBody);
-
-		  //MODAL DIALOG
-		  var ModalDialog = document.createElement('div');
-		  ModalDialog.setAttribute('class', 'modal-dialog');
-		  ModalDialog.setAttribute('style', 'max-width: 350px !important;');
-		  ModalDialog.setAttribute('role', 'document');
-		  ModalDialog.appendChild(ModalContent);
-
-		  //MODAL MASTER
-		  var ModalMaster = document.createElement('div');
-		  ModalMaster.setAttribute('class', 'modal fade');
-		  ModalMaster.setAttribute('style', 'top: 30% !important;');
-		  ModalMaster.setAttribute('id', 'TextModal');
-		  ModalMaster.setAttribute('tabindex', '-1');
-		  ModalMaster.setAttribute('role', 'dialog');
-		  ModalMaster.setAttribute('aria-hidden', 'true');
-		  ModalMaster.appendChild(ModalDialog);
-
-		  $(document.body).append(ModalMaster);
-
-		  //OPEN MODAL
-		  $('#TextModal').modal('toggle');
-		  //INVOKE CALLBACK FUNCTION
-		  $("#SubmitTextModal").submit(function(event) {
-			//STOP PAGE RELOADING
+		  /* Open the text modal. */
+		  $('#text_modal').modal('toggle');
+		  
+		  $("#modal_form").submit(function(event) {
+			/* Stop page reloading. */
 			event.preventDefault();
-			//GET INPUT
-			var INPUT = document.getElementById("ModalTextInput").value;
-			//CLEAR INPUT
-			document.getElementById("ModalTextInput").value = '';
-			//ARGS
-			_ARGS.INPUT = INPUT;
-			//CALLBACK
+			/* Get text input. */
+			_ARGS.INPUT = document.getElementById("modal_text_input").value;
+			/* Clear text input. */
+			document.getElementById("modal_text_input").value = '';
+			/* Invoke callback function. */
 			_CALLBACK(_ARGS);
-			//CLOSE MODAL
-			$('#TextModal').modal('toggle');
+			/* Close the modal. */
+			$('#text_modal').modal('toggle');
 		  });
-		  //DESTROY ON CLOSE
-		  $('#TextModal').on('hidden.bs.modal', function() {
-			var elem = document.querySelector('#TextModal');
+		  /* Destroy the modal on close. */
+		  $('#text_modal').on('hidden.bs.modal', function() {
+			var elem = document.querySelector('#text_modal');
 			elem.parentNode.removeChild(elem);
 		  })
 		}
 		
-		function CreateFolder(args){
+		function create_folder(args){
 
-			var current_id = breadcrumb.current_id;
 			var xhttp = new XMLHttpRequest();
 			xhttp.onreadystatechange = function() {
 				if (this.readyState == 4 && this.status == 200) {
 					
-					//console.log(this.responseText);
 					var user = JSON.parse(this.responseText);
 					
-					
-					//var folder = JSON.parse(this.responseText)[0].resources;
-					
-					console.log(user);
-					if(breadcrumb.items.length == 1){
-						user[0].resources[0].items.push({"name": args.INPUT, "size": "0MB", "type": "folder"});
-					} else {
-						for(var i = 0; i < breadcrumbs.items.length; i++){
-							if(typeof folder.items[breadcrumbs.items[i]] != 'undefined'){
-								//folder = 
+					/* Find target folder. */
+					var folder = user[0].resources[0];
+					for(var i = 1; i < breadcrumb.items.length; i++){
+						/* Has the target folder been reached? */
+						for(var j = 0; j < folder.items.length; j++){
+							if(folder.items[j].name == breadcrumb.items[i]){
+								folder = folder.items[j];
 							}
 						}
 					}
 					
+					/* Check for duplicate folder names. */
+					for(var i = 0; i < folder.items.length; i++){
+						if(folder.items[i].name == args.INPUT){
+							return $.notify("Folder \"" + args.INPUT + "\" already exists.", "error");
+						}
+					}
+					
+					folder.items.push({"name": args.INPUT, "size": "0MB", "type": "folder", items: []});
+					
+					//user[0].resources[0].items.length = 0;
 					var xhttp1 = new XMLHttpRequest();
 					xhttp1.onreadystatechange = function() {
 						if (this.readyState == 4 && this.status == 200) {
 							datatable.render();
-							console.log(this.responseText);
+							$.notify("Folder \"" + args.INPUT + "\" added.", "success");
 						}
 					};
-					
 					xhttp1.open("PUT", '/api/users/' + user_id, true);
 					xhttp1.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
 					xhttp1.send(JSON.stringify({"user":user[0]}));
@@ -672,8 +646,49 @@
 			};
 			xhttp.open("GET", '/api/users/' + user_id, true);
 			xhttp.send(); 
+		}
 		
-			
+		function delete_resource(name){
+		
+			var xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function() {
+				if (this.readyState == 4 && this.status == 200) {
+					
+					var user = JSON.parse(this.responseText);
+					
+					/* Find target folder. */
+					var folder = user[0].resources[0];
+					for(var i = 1; i < breadcrumb.items.length; i++){
+						/* Has the target folder been reached? */
+						for(var j = 0; j < folder.items.length; j++){
+							if(folder.items[j].name == breadcrumb.items[i]){
+								folder = folder.items[j];
+							}
+						}
+					}
+					
+					/* Remove resource. */
+					for(var i = 0; i < folder.items.length; i++){
+						if(folder.items[i].name == name)
+							folder.items.splice(i, 1);
+					}
+					
+					//user[0].resources[0].items.length = 0;
+					var xhttp1 = new XMLHttpRequest();
+					xhttp1.onreadystatechange = function() {
+						if (this.readyState == 4 && this.status == 200) {
+							datatable.render();
+							$.notify("Folder \"" + name + "\" deleted.", "success");
+						}
+					};
+					xhttp1.open("PUT", '/api/users/' + user_id, true);
+					xhttp1.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+					xhttp1.send(JSON.stringify({"user":user[0]}));
+					
+			   }
+			};
+			xhttp.open("GET", '/api/users/' + user_id, true);
+			xhttp.send(); 
 		}
 		
 	</script>
