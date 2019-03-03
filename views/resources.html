@@ -192,7 +192,6 @@
 		*/
 		
 		var user_id = "<%= user._id %>";
-		console.log(user_id);
 		
 		var side_nav_open = true;
 		
@@ -218,8 +217,8 @@
 		  document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
 		}
 		
-		var breadcrumb = new breadcrumb('breadcrumb');
-		var datatable = new datatable("resource-table", ["Name", "Type", "Sharing", "Size"]);
+		var main_breadcrumbs = new breadcrumbs('breadcrumb');
+		var resource_table = new datatable("resource-table", ["Name", "Type", "Sharing", "Size"]);
 		
 		
 		document.getElementById('open_menu').addEventListener('click', function(){
@@ -234,6 +233,9 @@
 				
 				this.render = function(){
 					this.empty();
+					
+					var _this = this;
+					
 					/* Get user data. */
 					var xhttp = new XMLHttpRequest();
 					xhttp.onreadystatechange = function() {
@@ -258,34 +260,32 @@
 							/* Build breadcrumb from url. */
 							var url_breadcrumbs = window.location.href.split('resources')[1].split('/');
 							
-							breadcrumb.reset();
+							main_breadcrumbs.reset();
 							
 							for(var i = 1; i < url_breadcrumbs.length; i++){
-								breadcrumb.add(url_breadcrumbs[i]);
+								main_breadcrumbs.add(url_breadcrumbs[i]);
 							}
-							
-							console.log(breadcrumb.items);
 							
 							/* Find target folder. */
 							var folder = user[0].resources[0];
 							var found_flag = false;
-							for(var i = 1; i < breadcrumb.items.length; i++){
+							for(var i = 1; i < main_breadcrumbs.items.length; i++){
 								found_flag = false;
 								/* Has the target folder been reached? */
 								for(var j = 0; j < folder.items.length; j++){
-									if(folder.items[j].name == breadcrumb.items[i]){
+									if(folder.items[j].name == main_breadcrumbs.items[i]){
 										folder = folder.items[j];
 										found_flag = true;
 									}
 								}
 							}
 							
-							if(breadcrumb.items.length == 1) found_flag = true;
+							if(main_breadcrumbs.items.length == 1) found_flag = true;
 							
 							if(found_flag){
 								/* Render the rows. */
 								for(var i = 0; i < folder.items.length; i++)
-									datatable.add_row([folder.items[i].name, folder.items[i].type, "private", folder.items[i].size]);
+									_this.add_row([folder.items[i].name, folder.items[i].type, "private", folder.items[i].size]);
 							} else {
 								window.location.href = '/resources'
 							}
@@ -313,12 +313,19 @@
 						dt_row.appendChild(el_factory('td', {}, columns[i]));
 					var btn = this.generate_action_btn(null, [
 						{"star": function(){console.log('clicked star')}},
-						{"delete": function(){console.log('clicked delete');
-							//console.log();
+						{"delete": function(){
 							delete_resource(this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML);
 						}},
-						{"rename": function(){console.log('clicked rename')}},
-						{"move": function(){console.log('clicked moved')}}
+						{"rename": function(){
+							console.log('clicked rename');
+							var lower = columns[1];
+							var upper = lower.charAt(0).toUpperCase() + lower.substr(1);
+							generate_text_modal(upper, "Enter the new " + columns[1] + " name", this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML, "Rename", rename_resource, {});
+						}},
+						{"move": function(){
+							console.log('clicked moved');
+							generate_move_modal(this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML);
+						}}
 					]);
 					dt_row.appendChild(btn);
 					document.getElementById(this.target + '-body').appendChild(dt_row);
@@ -404,30 +411,30 @@
 		document.addEventListener("DOMContentLoaded", function(event) {
 			if(window.innerWidth < 768) {
 				closeNav();
-				datatable.platform = "mobile";
+				resource_table.platform = "mobile";
 			} else if( window.innerWidth >= 768) {
 				openNav();
-				datatable.platform = "desktop";
+				resource_table.platform = "desktop";
 			}
-			datatable.render();
+			resource_table.render();
 		});
 		
 		window.addEventListener("resize", function(){
 			if(window.innerWidth < 768) {
 				closeNav();
-				if(datatable.platform == "desktop"){
-					datatable.destroy();
-					datatable.init("resource-table", ["Name"]);
-					datatable.platform = "mobile"
-					datatable.render();
+				if(resource_table.platform == "desktop"){
+					resource_table.destroy();
+					resource_table.init("resource-table", ["Name"]);
+					resource_table.platform = "mobile"
+					resource_table.render();
 				}
 			} else if( window.innerWidth >= 768) {
 				openNav();
-				if(datatable.platform == "mobile"){
-					datatable.destroy();
-					datatable.init("resource-table", ["Name", "Type", "Sharing", "Size"]);
-					datatable.platform = "desktop"
-					datatable.render();
+				if(resource_table.platform == "mobile"){
+					resource_table.destroy();
+					resource_table.init("resource-table", ["Name", "Type", "Sharing", "Size"]);
+					resource_table.platform = "desktop"
+					resource_table.render();
 				}
 			}
 		});
@@ -441,8 +448,8 @@
 			//console.log(event);
 			if(event.target.tagName == 'TD'){
 				var href = "";
-				for(var i = 0; i < breadcrumb.items.length; i++){
-						href += '/' + breadcrumb.items[i];
+				for(var i = 0; i < main_breadcrumbs.items.length; i++){
+						href += '/' + main_breadcrumbs.items[i];
 				}
 				href += '/' + event.target.parentNode.childNodes[1].innerHTML;
 				console.log(href);
@@ -498,56 +505,149 @@
 			}
 		};
 		
-		function breadcrumb(target){
-			
-			this.items = ['resources'];
-			
-			this.reset = function(){
-				this.items.length = 1;
-				var select = document.getElementById('breadcrumbs');
-				while(select.firstChild)
-					select.removeChild(select.firstChild);
-				var breadcrumb = el_factory('li', {class: 'breadcrumb-item'}, el_factory('a', {href:'/resources'}, 'resources'));
-				document.getElementById('breadcrumbs').appendChild(breadcrumb);
-			}
-			
-			this.add = function(folder){
-				this.items.push(folder);
-				var href = "";
-				for(var i = 0; i < this.items.length; i++){
-					href += "/" + this.items[i];
-				}
-				var breadcrumb = el_factory('li', {class: 'breadcrumb-item'}, el_factory('a', {href:href}, folder))
-				document.getElementById('breadcrumbs').appendChild(breadcrumb);
-			}
-			
-			this.remove_last = function(){
-				var select = document.getElementById('breadcrumbs');
-				select.removeChild(select.lastChild);
-			}
-			
-			/* Constructor */
-			this.init = function(){
-				
-				var breadcrumb = el_factory('nav', {}, el_factory('ol', {class: 'breadcrumb', id: 'breadcrumbs'}, 
-					el_factory('li', {class: 'breadcrumb-item'}, el_factory('a', {href:'/resources'}, 'resources')),
-				));
-				document.getElementById(target).appendChild(breadcrumb);
-			}
-			
-			this.init();
 		
+		
+		
+		
+		function create_folder(args){
+
+			var xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function() {
+				if (this.readyState == 4 && this.status == 200) {
+					
+					var user = JSON.parse(this.responseText);
+					
+					/* Find target folder. */
+					var folder = user[0].resources[0];
+					for(var i = 1; i < main_breadcrumbs.items.length; i++){
+						/* Has the target folder been reached? */
+						for(var j = 0; j < folder.items.length; j++){
+							if(folder.items[j].name == main_breadcrumbs.items[i]){
+								folder = folder.items[j];
+							}
+						}
+					}
+					
+					/* Check for duplicate folder names. */
+					for(var i = 0; i < folder.items.length; i++){
+						if(folder.items[i].name == args.INPUT){
+							return $.notify("Folder \"" + args.INPUT + "\" already exists.", "error");
+						}
+					}
+					
+					folder.items.push({"name": args.INPUT, "size": "0MB", "type": "folder", items: []});
+					
+					//user[0].resources[0].items.length = 0;
+					var xhttp1 = new XMLHttpRequest();
+					xhttp1.onreadystatechange = function() {
+						if (this.readyState == 4 && this.status == 200) {
+							resource_table.render();
+							$.notify("Folder \"" + args.INPUT + "\" added.", "success");
+						}
+					};
+					xhttp1.open("PUT", '/api/users/' + user_id, true);
+					xhttp1.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+					xhttp1.send(JSON.stringify({"user":user[0]}));
+					
+			   }
+			};
+			xhttp.open("GET", '/api/users/' + user_id, true);
+			xhttp.send(); 
 		}
 		
-		/*
-		|--------------------------------------------------------------------------
-		| FUNCTION: generate_text_modal
-		|--------------------------------------------------------------------------
-		|
-		|	Generates and opens a modal with a text box. Invokes callback function on submit.
-		| 	Appends user input to callback _ARGS.INPUT
-		|
-		*/
+		function delete_resource(name){
+		
+			var xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function() {
+				if (this.readyState == 4 && this.status == 200) {
+					
+					var user = JSON.parse(this.responseText);
+					
+					/* Find target folder. */
+					var folder = user[0].resources[0];
+					for(var i = 1; i < main_breadcrumbs.items.length; i++){
+						/* Has the target folder been reached? */
+						for(var j = 0; j < folder.items.length; j++){
+							if(folder.items[j].name == main_breadcrumbs.items[i]){
+								folder = folder.items[j];
+							}
+						}
+					}
+					
+					/* Remove resource. */
+					for(var i = 0; i < folder.items.length; i++){
+						if(folder.items[i].name == name)
+							folder.items.splice(i, 1);
+					}
+					
+					//user[0].resources[0].items.length = 0;
+					var xhttp1 = new XMLHttpRequest();
+					xhttp1.onreadystatechange = function() {
+						if (this.readyState == 4 && this.status == 200) {
+							resource_table.render();
+							$.notify("Folder \"" + name + "\" deleted.", "success");
+						}
+					};
+					xhttp1.open("PUT", '/api/users/' + user_id, true);
+					xhttp1.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+					xhttp1.send(JSON.stringify({"user":user[0]}));
+					
+			   }
+			};
+			xhttp.open("GET", '/api/users/' + user_id, true);
+			xhttp.send(); 
+		}
+		
+		function rename_resource(args){
+		
+			var xhttp = new XMLHttpRequest();
+			xhttp.onreadystatechange = function() {
+				if (this.readyState == 4 && this.status == 200) {
+					
+					var user = JSON.parse(this.responseText);
+					
+					/* Find target folder. */
+					var folder = user[0].resources[0];
+					for(var i = 1; i < main_breadcrumbs.items.length; i++){
+						/* Has the target folder been reached? */
+						for(var j = 0; j < folder.items.length; j++){
+							if(folder.items[j].name == main_breadcrumbs.items[i]){
+								folder = folder.items[j];
+							}
+						}
+					}
+					
+					/* Check for duplicate folder names. */
+					for(var i = 0; i < folder.items.length; i++){
+						if(folder.items[i].name == args.INPUT){
+							return $.notify("Folder \"" + args.INPUT + "\" already exists.", "error");
+						}
+					}
+					
+					/* Rename folder. */
+					for(var i = 0; i < folder.items.length; i++){
+						if(folder.items[i].name == args.ORIGINAL)
+							folder.items[i].name = args.INPUT;
+					}
+					
+					//user[0].resources[0].items.length = 0;
+					var xhttp1 = new XMLHttpRequest();
+					xhttp1.onreadystatechange = function() {
+						if (this.readyState == 4 && this.status == 200) {
+							resource_table.render();
+							$.notify("Folder \"" + args.ORIGINAL + "\" renamed to \"" + args.INPUT + "\".", "success");
+						}
+					};
+					xhttp1.open("PUT", '/api/users/' + user_id, true);
+					xhttp1.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+					xhttp1.send(JSON.stringify({"user":user[0]}));
+					
+			   }
+			};
+			xhttp.open("GET", '/api/users/' + user_id, true);
+			xhttp.send(); 
+		}
+		
 		function generate_text_modal(_TITLE, _PLACEHOLDER, _TEXT, _BUTTON_TEXT, _CALLBACK, _ARGS) {
 			
 			/* Generate Close Button. */
@@ -588,6 +688,7 @@
 			event.preventDefault();
 			/* Get text input. */
 			_ARGS.INPUT = document.getElementById("modal_text_input").value;
+			_ARGS.ORIGINAL = _TEXT;
 			/* Clear text input. */
 			document.getElementById("modal_text_input").value = '';
 			/* Invoke callback function. */
@@ -602,8 +703,8 @@
 		  })
 		}
 		
-		function create_folder(args){
-
+		function generate_move_modal(resource_name){
+			
 			var xhttp = new XMLHttpRequest();
 			xhttp.onreadystatechange = function() {
 				if (this.readyState == 4 && this.status == 200) {
@@ -612,85 +713,115 @@
 					
 					/* Find target folder. */
 					var folder = user[0].resources[0];
-					for(var i = 1; i < breadcrumb.items.length; i++){
+					for(var i = 1; i < main_breadcrumbs.items.length; i++){
 						/* Has the target folder been reached? */
 						for(var j = 0; j < folder.items.length; j++){
-							if(folder.items[j].name == breadcrumb.items[i]){
+							if(folder.items[j].name == main_breadcrumbs.items[i]){
 								folder = folder.items[j];
 							}
 						}
 					}
 					
-					/* Check for duplicate folder names. */
+					var original_resource = {};
+					
+					/* Save original resource and delete it from old location.*/
 					for(var i = 0; i < folder.items.length; i++){
-						if(folder.items[i].name == args.INPUT){
-							return $.notify("Folder \"" + args.INPUT + "\" already exists.", "error");
-						}
+						if(folder.items[i].name == resource_name)
+							original_resource = folder.items[i]
 					}
 					
-					folder.items.push({"name": args.INPUT, "size": "0MB", "type": "folder", items: []});
+					console.log(original_resource);
 					
-					//user[0].resources[0].items.length = 0;
-					var xhttp1 = new XMLHttpRequest();
-					xhttp1.onreadystatechange = function() {
-						if (this.readyState == 4 && this.status == 200) {
-							datatable.render();
-							$.notify("Folder \"" + args.INPUT + "\" added.", "success");
-						}
-					};
-					xhttp1.open("PUT", '/api/users/' + user_id, true);
-					xhttp1.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
-					xhttp1.send(JSON.stringify({"user":user[0]}));
+					//var modal_breadcrumbs = new breadcrumbs();
+					
+					/* Generate Close Button. */
+					var close_btn = el_factory('button', {type: "button", class: "close", "data-dismiss": "modal", "aria-label": "Close"}, el_factory('span', {"aria-hidden": "true"}, "x"));
+					
+					/* Generate Title. */
+					var title = el_factory('label', {for: 'NewDocumentName', class: 'col-form-label', style: 'padding: 10px 0px; color: black; font-weight: normal; font-size: large;'}, "Move resource to..");
+			
+					/* Generate Submit Button. */
+					style = 'float: right; border: none !important; color: white !important; font-weight: bold; margin-top: 15px; padding: 7px 15px; background: #007bff; font-size: small;';
+					var submit_btn = el_factory('input', {type: 'submit', 'value': "Move", style: style});
+				
+					/* Generate Form. */
+					var form = el_factory('form', {id: 'modal_form'}, close_btn, title);
+					
+					/* Generate Modal. */
+					var modal = el_factory('div', {class: 'modal fade', style: 'top: 30% !important;', id: 'move_modal', tabindex: '-1', role: 'dialog', 'aria-hidden': 'true'},
+						el_factory('div', {class: 'modal-dialog', style: 'max-width: 350px !important;', role: 'document'},
+							el_factory('div', {class: 'modal-content', style: 'border-radius: 0; box-shadow: 0px 0px 10px 1px grey;'},
+								el_factory('div', {class: 'modal-body', id: 'move-modal-body'}, form)
+							)
+						)
+					);
+					
+						
+					
+				  $(document.body).append(modal);
+				  
+				  var modal_breadcrumbs = new breadcrumbs('move-modal-body');
+				  
+				  var move_table = new datatable('move-modal-body', ["Name"]);
+				  
+				  document.getElementById('move-modal-body').appendChild(submit_btn);
+				  
+					/* Open the text modal. */
+					$('#move_modal').modal('toggle');
+					 /* Destroy the modal on close. */
+					  $('#move_modal').on('hidden.bs.modal', function() {
+						var elem = document.querySelector('#move_modal');
+						elem.parentNode.removeChild(elem);
+					  })
+					
 					
 			   }
-			};
+			}
 			xhttp.open("GET", '/api/users/' + user_id, true);
 			xhttp.send(); 
+			
 		}
 		
-		function delete_resource(name){
+		function breadcrumbs(target){
+			
+			this.items = ['resources'];
+			
+			this.reset = function(){
+				this.items.length = 1;
+				var select = document.getElementById('breadcrumbs');
+				while(select.firstChild)
+					select.removeChild(select.firstChild);
+				var breadcrumb = el_factory('li', {class: 'breadcrumb-item'}, el_factory('a', {href:'/resources'}, 'resources'));
+				document.getElementById('breadcrumbs').appendChild(breadcrumb);
+			}
+			
+			this.add = function(folder){
+				this.items.push(folder);
+				var href = "";
+				for(var i = 0; i < this.items.length; i++){
+					href += "/" + this.items[i];
+				}
+				var breadcrumb = el_factory('li', {class: 'breadcrumb-item'}, el_factory('a', {href:href}, folder))
+				document.getElementById('breadcrumbs').appendChild(breadcrumb);
+			}
+			
+			this.remove_last = function(){
+				var select = document.getElementById('breadcrumbs');
+				select.removeChild(select.lastChild);
+			}
+			
+			/* Constructor */
+			this.init = function(){
+				
+				var breadcrumb = el_factory('nav', {}, el_factory('ol', {class: 'breadcrumb', id: 'breadcrumbs'}, 
+					el_factory('li', {class: 'breadcrumb-item'}, el_factory('a', {href:'/resources'}, 'resources')),
+				));
+				document.getElementById(target).appendChild(breadcrumb);
+			}
+			
+			this.init();
 		
-			var xhttp = new XMLHttpRequest();
-			xhttp.onreadystatechange = function() {
-				if (this.readyState == 4 && this.status == 200) {
-					
-					var user = JSON.parse(this.responseText);
-					
-					/* Find target folder. */
-					var folder = user[0].resources[0];
-					for(var i = 1; i < breadcrumb.items.length; i++){
-						/* Has the target folder been reached? */
-						for(var j = 0; j < folder.items.length; j++){
-							if(folder.items[j].name == breadcrumb.items[i]){
-								folder = folder.items[j];
-							}
-						}
-					}
-					
-					/* Remove resource. */
-					for(var i = 0; i < folder.items.length; i++){
-						if(folder.items[i].name == name)
-							folder.items.splice(i, 1);
-					}
-					
-					//user[0].resources[0].items.length = 0;
-					var xhttp1 = new XMLHttpRequest();
-					xhttp1.onreadystatechange = function() {
-						if (this.readyState == 4 && this.status == 200) {
-							datatable.render();
-							$.notify("Folder \"" + name + "\" deleted.", "success");
-						}
-					};
-					xhttp1.open("PUT", '/api/users/' + user_id, true);
-					xhttp1.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
-					xhttp1.send(JSON.stringify({"user":user[0]}));
-					
-			   }
-			};
-			xhttp.open("GET", '/api/users/' + user_id, true);
-			xhttp.send(); 
 		}
-		
 	</script>
   </body>
 </html>
