@@ -210,7 +210,18 @@
 		});
 		
 		/* The datatable class encapsulates all functions needed to create and manipulate a datatable on the DOM. */
-		function datatable(target, headers, toggle_action_btn, toggle_breadcrumb_relocation){
+		function datatable(target, headers, a_btn, rlcte){
+				
+				/* Could add a config object instead of parameters. */
+				this.config = {
+					"action_btn": true,
+					"relocate": true,
+					"headers": [],
+					"target": null
+				}
+				
+				/* Holds JSON for the render function to use. */
+				this._data = null;
 				
 				this.platform = "";
 
@@ -221,78 +232,77 @@
 			
 					this.items = [];
 					
-					/*
-					this.reset = function(){
-						this.items.length = 1;
-						var select = document.getElementById(target + '-breadcrumbs');
-						console.log(select.parentElement);
-						//while(select.parentElement.firstChild)
-						//	select.parentElement.removeChild(select.parentElement.firstChild);
-						this.init();
-					}
-					*/
-					
-					this.update = function(){
-						var select = document.getElementById(target + '-breadcrumbs');
-						while(select.firstChild)
-							select.removeChild(select.firstChild);
-						console.log(this.items);
-						for(var i = 0; i < this.items.length; i++){
-							this.add(this.items[i]);
-						}
-					}
-					
-					this.add = function(folder){		
-						
+					this.generate_from_url = function(){
 						var _this = this;
-						
-						console.log(toggle_breadcrumb_relocation);
-					
-						this.items.push(folder);
-						var href = "";
-						for(var i = 0; i < this.items.length; i++){
-							href += "/" + this.items[i];
+						var url_breadcrumbs = window.location.href.split('resources')[1].split('/');
+						_this.this_breadcrumbs.items.push("resources");
+						for(var i = 1; i < url_breadcrumbs.length; i++){
+							_this.this_breadcrumbs.items.push(url_breadcrumbs[i]);
+							_this.this_breadcrumbs.update(null);
 						}
-						
-						var breadcrumb = el_factory('li', {class: 'breadcrumb-item'}, el_factory('a', {href:href}, folder));
-						
-						if(!toggle_breadcrumb_relocation){
-							breadcrumb.addEventListener('click', function(e){
-								e.preventDefault();
-								console.log('clicked');
-								_this.items.length = 1;
-								_this.update();
-								parent.render_current_folder(function(){}, false);
-							});
-						}
-						document.getElementById(target + '-breadcrumbs').appendChild(breadcrumb);
 					}
 					
-					this.remove_last = function(){
-						var select = document.getElementById(target + '-breadcrumbs');
-						select.removeChild(select.lastChild);
+					/* Creates a breadcrumb navigation using the items array. */
+					this.update = function(data){
+					
+						var _this = this;
+						/* Empty the breadcrumbs body. */
+						var el = document.getElementById(target + '-breadcrumbs');
+						while(el.firstChild)
+							el.removeChild(el.firstChild);
+						/* Add breadcrumb items to the breadcrumbs. */
+						for(var i = 0; i < this.items.length; i++){
+							/* Build the link. */
+							var href = "";
+							for(var j = 0; j < this.items.length; j++){
+								href += "/" + this.items[j];
+							}
+							var breadcrumb = el_factory('li', {class: 'breadcrumb-item', 'data-index': i}, el_factory('a', {href:href}, this.items[i]));
+							/* Attach an event listener if redirection has been disabled. */
+							if(!rlcte){
+								breadcrumb.addEventListener('click', function(e){
+									e.preventDefault();
+									if(e.target.nodeName == 'A'){
+										_this.items.length = parseInt(e.target.parentNode.dataset.index) + 1;
+										_this.update(null);
+										if(data != null)
+											parent.render(function(){}, false, null, data);
+										else
+											parent.render(function(){}, false, null, null);
+									}
+								});
+							}
+							document.getElementById(target + '-breadcrumbs').appendChild(breadcrumb);
+						}
 					}
 					
 					/* Constructor */
 					this.init = function(){
-						
 						document.getElementById(target).appendChild(el_factory('nav', {}, el_factory('ol', {class: 'breadcrumb', id: target + '-breadcrumbs'})));
-						this.add("resources");
-						
+						this.items.push("resources");
+						this.update(null);
 					}
-					
 					this.init();
-				
 				}
 				
-				/* Helper function which retrieves the current working folder. If update is set to true then folder will be updated. */
-				this.render_current_folder = function(callback, update, success_msg){
+				/* Gets the current folder from breadcrumbs and renders or updates using the callback function. */
+				this.render = function(callback, update, success_msg, data){
 					var _this = this;
 					
 					var xhttp = new XMLHttpRequest();
 					xhttp.onreadystatechange = function() {
 						if (this.readyState == 4 && this.status == 200) {
-							var user = JSON.parse(this.responseText);
+							
+							var user = null;
+							
+							/* If data has been supplied as a parameter, use instead of db data. */
+							if(data != null){
+								_this._data = data;
+								user = data;
+							} else {
+								/* Parse JSON from response. */
+								user = JSON.parse(this.responseText);
+							}
 							
 							/* Add basic JSON schema on users first load. */
 							if(user[0].resources.length == 0){
@@ -322,21 +332,31 @@
 								}
 							}
 							
+							console.log(folder);
+							
 							if(_this.this_breadcrumbs.items.length == 1) found_flag = true;
 							
 							if(!found_flag){
 								return window.location.href = '/resources'
 							}
 							
-							/* Taking advantage of call by reference to manipulate folder in callback. */
+							/* Just render the table. */
+							if (!update){ 
+								/* Remove all elements from the table's body. */
+								_this.empty();
+								for(var i = 0; i < folder.items.length; i++)
+									_this.add_row([folder.items[i].name, folder.items[i].type, "private", folder.items[i].size]);
+								return 0;
+							}
+							
+							/* Use call by reference to manipulate folder data in callback. */
 							var ret = callback({user: user, folder: folder});
 							
+							/* Update the database with modified data if update is set to true. */
 							if(update && ret == 0){
 								var xhttp1 = new XMLHttpRequest();
 								xhttp1.onreadystatechange = function() {
 									if (this.readyState == 4 && this.status == 200) {
-										//resource_table.render();
-										
 										/* Remove all elements from the table's body. */
 										_this.empty();
 										
@@ -349,12 +369,6 @@
 								xhttp1.open("PUT", '/api/users/' + user_id, true);
 								xhttp1.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
 								xhttp1.send(JSON.stringify({"user":user[0]}));
-							} else if (!update){
-								/* Remove all elements from the table's body. */
-								_this.empty();
-								
-								for(var i = 0; i < folder.items.length; i++)
-									_this.add_row([folder.items[i].name, folder.items[i].type, "private", folder.items[i].size]);
 							}
 					   }
 					};
@@ -362,68 +376,53 @@
 					xhttp.send(); 
 				}
 				
-				/* I might delete this function. Doing so would mean the url would be parsed on every request..*/
-				this.render = function(){
-					
-					var _this = this;
-					
-					/* Build breadcrumbs from url. */
-					var url_breadcrumbs = window.location.href.split('resources')[1].split('/');
-					//_this.this_breadcrumbs.reset();
-					for(var i = 1; i < url_breadcrumbs.length; i++){
-						_this.this_breadcrumbs.add(url_breadcrumbs[i]);
-					}
-					
-					this.render_current_folder(function(){}, false);
-					
-				}
-				
 				/* Need to check for resource type for action menu. */
 				this.add_row = function(columns){
 				
 					var _this = this;
-				
+					/* Validation. */
 					if(typeof columns === 'undefined') 
 						return console.log("error: missing elements argument");
-					//if(columns.length != this.num_col)
-					//	return console.log("error: num elements must match the number if headers");
 					var dt_row = document.createElement("tr");
+					/* Click event listener. */
 					dt_row.addEventListener("click", function (event) {
-						if(toggle_breadcrumb_relocation){
+						if(rlcte){
 							var href = "";
 							for(var i = 0; i < resource_table.this_breadcrumbs.items.length; i++){
 									href += '/' + resource_table.this_breadcrumbs.items[i];
 							}
 							href += '/' + event.target.parentNode.childNodes[1].innerHTML;
 							window.location.href = href;
-						} else if(event.target.classList[0] == "clickable" && toggle_breadcrumb_relocation == false){
-							_this.this_breadcrumbs.add(event.target.parentNode.childNodes[1].innerHTML);
-							_this.render_current_folder(function(){}, false);
+						} else if(event.target.classList[0] == "clickable" && rlcte == false){
+							_this.this_breadcrumbs.items.push(event.target.parentNode.childNodes[1].innerHTML);
+							_this.this_breadcrumbs.update(_this._data);
+							_this.render(function(){}, false, null, _this._data);
 						}
 					});
 					dt_row.appendChild(this.generate_checkbox(function(){
 						console.log("row select");
 					}));
 					/* One column on mobile. */
-					if(window.innerWidth < 768){
+					if(window.innerWidth < 768 || headers.length == 1){
 						columns.length = 1;
 					}
 					for(var i = 0; i < columns.length; i++)
 						dt_row.appendChild(el_factory('td', {class: 'clickable'}, columns[i]));
-					if(toggle_action_btn){
+					/* Add the action button if enabled. */
+					if(a_btn){
 						dt_row.appendChild(this.generate_action_btn(null, [
 							{"star": function(){console.log('clicked star')}},
 							{"delete": function(){
 								
 								var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
-								_this.render_current_folder(function(data){
+								_this.render(function(data){
 									/* Remove resource. */
 									for(var i = 0; i < data.folder.items.length; i++){
 										if(data.folder.items[i].name == name)
 											data.folder.items.splice(i, 1);
 									}
 									return 0;
-								}, true, "Folder \"" + name + "\" deleted.");
+								}, true, "Folder \"" + name + "\" deleted.", null);
 
 							}},
 							{"rename": function(){
@@ -432,7 +431,7 @@
 								
 								generate_text_modal(columns[1], "Enter the new " + columns[1] + " name", name, "Rename", function(args){
 									
-									_this.render_current_folder(function(data){
+									_this.render(function(data){
 										/* Check for duplicate folder names. */
 										for(var i = 0; i < data.folder.items.length; i++){
 											if(data.folder.items[i].name == args.INPUT){
@@ -446,7 +445,7 @@
 												data.folder.items[i].name = args.INPUT;
 										}
 										return 0;
-									}, true, "Folder \"" + args.ORIGINAL + "\" renamed to \""+ args.INPUT +"\".", "success");
+									}, true, "Folder \"" + args.ORIGINAL + "\" renamed to \""+ args.INPUT +"\".", "success", null);
 								}, {});
 							}},
 							{"move": function(){
@@ -519,7 +518,7 @@
 					}
 					for(var i = 0; i < headers.length; i++)
 						dt_row.appendChild(el_factory('th', {}, headers[i]));
-					if(toggle_action_btn){
+					if(a_btn){
 						dt_row.appendChild(this.generate_action_btn("action-btn", [
 						{"Upload Files": function(){console.log('clicked Upload files')}},
 						{"Upload Folder": function(){console.log('clicked Upload folder')}},
@@ -545,7 +544,7 @@
 				openNav();
 				resource_table.platform = "desktop";
 			}
-			resource_table.render();
+			resource_table.render(function(){}, false, null, null);
 		});
 		
 		window.addEventListener("resize", function(){
@@ -555,7 +554,7 @@
 					resource_table.destroy();
 					resource_table.init("resource-table", ["Name"]);
 					resource_table.platform = "mobile"
-					resource_table.render();
+					resource_table.render(function(){}, false, null, null);
 				}
 			} else if( window.innerWidth >= 768) {
 				openNav();
@@ -563,7 +562,7 @@
 					resource_table.destroy();
 					resource_table.init("resource-table", ["Name", "Type", "Sharing", "Size"]);
 					resource_table.platform = "desktop"
-					resource_table.render();
+					resource_table.render(function(){}, false, null, null);
 				}
 			}
 		});
@@ -637,7 +636,7 @@
 					var xhttp1 = new XMLHttpRequest();
 					xhttp1.onreadystatechange = function() {
 						if (this.readyState == 4 && this.status == 200) {
-							resource_table.render();
+							resource_table.render(function(){}, false, null, null);
 							$.notify("Folder \"" + args.INPUT + "\" added.", "success");
 						}
 					};
@@ -730,9 +729,13 @@
 					
 					/* Save original resource and delete it from old location.*/
 					for(var i = 0; i < folder.items.length; i++){
-						if(folder.items[i].name == resource_name)
+						if(folder.items[i].name == resource_name){
 							original_resource = folder.items[i]
+							folder.items.splice(i, 1);
+						}
 					}
+					
+					console.log(user);
 					
 					console.log(original_resource);
 					
@@ -760,15 +763,13 @@
 						)
 					);
 					
-						
+					
 					
 				  $(document.body).append(modal);
 				  
-				  var move_table = new datatable('move-modal-body', ["Name"], false);
-				  
+				  var move_table = new datatable('move-modal-body', ["Name"], false, false);
+				  move_table.render(function(){}, false, null, user);
 				  document.getElementById('move-modal-body').appendChild(submit_btn);
-				  
-				  
 				  
 					/* Open the text modal. */
 					$('#move_modal').modal('toggle');
