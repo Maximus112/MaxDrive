@@ -167,7 +167,7 @@
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.6/umd/popper.min.js" integrity="sha384-wHAiFfRlMFy6i5SRaxvfOCifBUQy1xHdJ/yoi7FRNXMRBu5WHdZYu1hA6ZOblgut" crossorigin="anonymous"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/js/bootstrap.min.js" integrity="sha384-B0UglyR+jN6CkvvICOB2joaf5I4l3gm9GU6Hc1og6Ls7i6U/mkkaduKaBhlAXv9k" crossorigin="anonymous"></script>
 	<script src="/js/notify.min.js"></script>
-	
+	<script src="https://sdk.amazonaws.com/js/aws-sdk-2.283.1.min.js"></script>
 	<script>
 		
 		/* Error Codes:
@@ -201,7 +201,7 @@
 		}
 		
 		//var main_breadcrumbs = new breadcrumbs('breadcrumb');
-		var resource_table = new datatable("resource-table", ["Name", "Type", "Sharing", "Size"], true, false);
+		var resource_table = new datatable("resource-table", ["Name", "Type", "Sharing", "Size"], true, true);
 		
 		
 		document.getElementById('open_menu').addEventListener('click', function(){
@@ -223,6 +223,8 @@
 				/* Holds JSON for the render function to use. */
 				this._data = null;
 				
+				this.selected = [];
+				
 				this.platform = "";
 
 				this.this_breadcrumbs = {};
@@ -233,12 +235,12 @@
 					this.items = [];
 					
 					this.generate_from_url = function(){
-						var _this = this;
+						this.items.length = 0;
 						var url_breadcrumbs = window.location.href.split('resources')[1].split('/');
-						_this.this_breadcrumbs.items.push("resources");
+						this.items.push("resources");
 						for(var i = 1; i < url_breadcrumbs.length; i++){
-							_this.this_breadcrumbs.items.push(url_breadcrumbs[i]);
-							_this.this_breadcrumbs.update(null);
+							this.items.push(url_breadcrumbs[i]);
+							this.update(null);
 						}
 					}
 					
@@ -254,7 +256,7 @@
 						for(var i = 0; i < this.items.length; i++){
 							/* Build the link. */
 							var href = "";
-							for(var j = 0; j < this.items.length; j++){
+							for(var j = 0; j < i + 1; j++){
 								href += "/" + this.items[j];
 							}
 							var breadcrumb = el_factory('li', {class: 'breadcrumb-item', 'data-index': i}, el_factory('a', {href:href}, this.items[i]));
@@ -289,6 +291,9 @@
 				this.render = function(callback, update, success_msg, data){
 					var _this = this;
 					
+					/* Reset selected on render. */
+					this.selected.length = 0;
+					
 					var xhttp = new XMLHttpRequest();
 					xhttp.onreadystatechange = function() {
 						if (this.readyState == 4 && this.status == 200) {
@@ -303,7 +308,7 @@
 								/* Parse JSON from response. */
 								user = JSON.parse(this.responseText);
 							}
-							
+
 							/* Add basic JSON schema on users first load. */
 							if(user[0].resources.length == 0){
 								user[0].resources.push({"type": "folder", "items": []});
@@ -331,8 +336,6 @@
 									}
 								}
 							}
-							
-							console.log(folder);
 							
 							if(_this.this_breadcrumbs.items.length == 1) found_flag = true;
 							
@@ -386,10 +389,10 @@
 					var dt_row = document.createElement("tr");
 					/* Click event listener. */
 					dt_row.addEventListener("click", function (event) {
-						if(rlcte){
+						if(rlcte && event.target.classList[0] == "clickable"){
 							var href = "";
-							for(var i = 0; i < resource_table.this_breadcrumbs.items.length; i++){
-									href += '/' + resource_table.this_breadcrumbs.items[i];
+							for(var i = 0; i < _this.this_breadcrumbs.items.length; i++){
+									href += '/' + _this.this_breadcrumbs.items[i];
 							}
 							href += '/' + event.target.parentNode.childNodes[1].innerHTML;
 							window.location.href = href;
@@ -399,8 +402,30 @@
 							_this.render(function(){}, false, null, _this._data);
 						}
 					});
-					dt_row.appendChild(this.generate_checkbox(function(){
-						console.log("row select");
+					dt_row.appendChild(this.generate_checkbox(function(event){
+						/* Add absolute path to selected array. */
+						
+							var path = "";
+							for(var i = 0; i < _this.this_breadcrumbs.items.length; i++){
+									path += '/' + _this.this_breadcrumbs.items[i];
+							}
+							path += '/' + event.target.parentNode.parentNode.nextSibling.innerHTML;
+							
+							/* Check for duplicates. */
+							var f_flg = false;
+							for(var i = 0; i < _this.selected.length; i++){
+								if(_this.selected[i] == path){
+									f_flg = true;
+									/* Remove. */
+									_this.selected.splice(i, 1);
+								}
+							}
+							
+							if(!f_flg)
+								_this.selected.push(path);
+								
+							console.log(_this.selected);
+						//_this.this_breadcrumbs.items
 					}));
 					/* One column on mobile. */
 					if(window.innerWidth < 768 || headers.length == 1){
@@ -445,11 +470,10 @@
 												data.folder.items[i].name = args.INPUT;
 										}
 										return 0;
-									}, true, "Folder \"" + args.ORIGINAL + "\" renamed to \""+ args.INPUT +"\".", "success", null);
+									}, true, "Folder \"" + args.ORIGINAL + "\" renamed to \""+ args.INPUT +"\".", null);
 								}, {});
 							}},
 							{"move": function(){
-								console.log('clicked moved');
 								generate_move_modal(this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML);
 							}}
 						]));
@@ -520,9 +544,58 @@
 						dt_row.appendChild(el_factory('th', {}, headers[i]));
 					if(a_btn){
 						dt_row.appendChild(this.generate_action_btn("action-btn", [
-						{"Upload Files": function(){console.log('clicked Upload files')}},
-						{"Upload Folder": function(){console.log('clicked Upload folder')}},
-						{"New Shared Folder": function(){console.log('clicked New Shared Folder')}},
+						{"Upload file": function(){
+							
+							/* Open file dialog. */
+							var file = el_factory('input', {type: 'file'});
+							file.addEventListener('change', function(){
+							/* Upload to AWS. */
+								
+								AWS.config.region = 'eu-west-2'; // Region
+								AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+									IdentityPoolId: 'eu-west-2:ece4887c-a2dd-45e8-a766-6e445673b866',
+								});
+
+								var s3 = new AWS.S3({
+								  apiVersion: '2006-03-01',
+								  params: {Bucket: 'maxdrive'}
+								});
+								
+							
+								var file = this.files[0];
+
+								if (file) {
+								/* Generate GUID for file name. */
+								var objKey = user_id + '/' + file.name;
+								console.log(objKey);
+								var params = {
+									Key: objKey,
+									ContentType: file.type,
+									Body: file,
+									ACL: 'public-read'
+								};
+
+								s3.putObject(params, function(err, data) {
+									if (err) {
+										alert('ERROR: ' + err);
+									} else {
+										alert("success");
+									}
+								});
+								} else {
+									alert('Nothing to upload.');
+								}
+								
+							});
+							file.click()
+							
+							
+							
+							
+							/* Add to MongoDB. */
+							
+							
+						}},
 						{"New Folder": function(){ generate_text_modal('Folder', 'Enter your folder name', false, 'Create', create_folder, {}); }}
 						]));
 					}
@@ -544,6 +617,7 @@
 				openNav();
 				resource_table.platform = "desktop";
 			}
+			resource_table.this_breadcrumbs.generate_from_url();
 			resource_table.render(function(){}, false, null, null);
 		});
 		
@@ -573,18 +647,6 @@
 					closeNav();
 				}
 			}
-			//console.log(event);
-			/*
-			if(event.target.tagName == 'TD' && 1 == 2){
-				var href = "";
-				for(var i = 0; i < resource_table.this_breadcrumbs.items.length; i++){
-						href += '/' + resource_table.this_breadcrumbs.items[i];
-				}
-				href += '/' + event.target.parentNode.childNodes[1].innerHTML;
-				console.log(href);
-				window.location.href = href;
-			}
-			*/
 		});
 		
 		/* Set the width of the sidebar to 250px and the left margin of the page content to 250px */
@@ -735,22 +797,12 @@
 						}
 					}
 					
-					console.log(user);
-					
-					console.log(original_resource);
-					
-					//var modal_breadcrumbs = new breadcrumbs();
-					
 					/* Generate Close Button. */
 					var close_btn = el_factory('button', {type: "button", class: "close", "data-dismiss": "modal", "aria-label": "Close"}, el_factory('span', {"aria-hidden": "true"}, "x"));
 					
 					/* Generate Title. */
 					var title = el_factory('label', {for: 'NewDocumentName', class: 'col-form-label', style: 'padding: 10px 0px; color: black; font-weight: normal; font-size: large;'}, "Move resource to..");
 			
-					/* Generate Submit Button. */
-					style = 'float: right; border: none !important; color: white !important; font-weight: bold; margin-top: 15px; padding: 7px 15px; background: #007bff; font-size: small;';
-					var submit_btn = el_factory('input', {type: 'submit', 'value': "Move", style: style});
-				
 					/* Generate Form. */
 					var form = el_factory('form', {id: 'modal_form'}, close_btn, title);
 					
@@ -769,6 +821,44 @@
 				  
 				  var move_table = new datatable('move-modal-body', ["Name"], false, false);
 				  move_table.render(function(){}, false, null, user);
+				  
+				  
+				  /* Generate Submit Button. */
+					style = 'float: right; border: none !important; color: white !important; font-weight: bold; margin-top: 15px; padding: 7px 15px; background: #007bff; font-size: small;';
+					var submit_btn = el_factory('input', {type: 'submit', 'value': "Move", style: style});
+					
+					submit_btn.addEventListener('click', function(){
+						console.log(move_table.selected);
+						if(move_table.selected.length > 1 || move_table.selected.length == 0)
+							return $.notify("Please select one row.", "error");
+						
+						var path = move_table.selected[0].split('/');
+						/* Find target folder. */
+						var folder = user[0].resources[0];
+						for(var i = 1; i < path.length; i++){
+							/* Has the target folder been reached? */
+							for(var j = 0; j < folder.items.length; j++){
+								if(folder.items[j].name == path[i]){
+									folder = folder.items[j];
+								}
+							}
+						}
+						/* Add original to folder. */
+						folder.items.push(original_resource);
+						
+						/* commit to db. */
+						var xhttp1 = new XMLHttpRequest();
+						xhttp1.onreadystatechange = function() {
+							if (this.readyState == 4 && this.status == 200) {
+								resource_table.render(function(){}, false, null, null);
+								$.notify("Folder moved to \"" + path[0] + "\".", "success");
+							}
+						};
+						xhttp1.open("PUT", '/api/users/' + user_id, true);
+						xhttp1.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+						xhttp1.send(JSON.stringify({"user":user[0]}));
+					});
+				  
 				  document.getElementById('move-modal-body').appendChild(submit_btn);
 				  
 					/* Open the text modal. */

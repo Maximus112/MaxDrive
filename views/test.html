@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  </head>
+  <body>
+    <h1>My Photo Albums App</h1>
+    <div id="app"></div>
+	
+	<input type="file" id="file-chooser" />
+    <button id="upload-button">Upload to S3</button>
+	
+	<script src="https://sdk.amazonaws.com/js/aws-sdk-2.283.1.min.js"></script>
+    <script>
+	
+	
+			   //https://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/s3-example-photo-album.html
+	
+       function getHtml(template) {
+          return template.join('\n');
+       }
+		
+		
+	
+		
+		function upload_file(){
+			s3.upload({
+				Key: 123,
+				Body: file,
+				ACL: 'public-read'
+			  }, function(err, data) {
+				if (err) {
+				  return alert('There was an error uploading your file: ', err.message);
+				}
+				alert('Successfully uploaded file.');
+			});
+		}
+		
+		function download_file(){
+			
+		}
+		
+		
+			/*
+			var albumBucketName = 'maxdrive';
+			var bucketRegion = 'eu-west-2';
+			var IdentityPoolId = 'eu-west-2:ece4887c-a2dd-45e8-a766-6e445673b866';
+
+			AWS.config.update({
+			  region: bucketRegion,
+			  credentials: new AWS.CognitoIdentityCredentials({
+				IdentityPoolId: IdentityPoolId
+			  })
+			});
+*/
+		
+		 var fileChooser = document.getElementById('file-chooser');
+   
+    var results = document.getElementById('results');
+	
+    document.getElementById('upload-button').addEventListener('click', function() {
+	
+	
+		// Initialize the Amazon Cognito credentials provider
+	
+			
+
+			AWS.config.region = 'eu-west-2'; // Region
+			AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+				IdentityPoolId: 'eu-west-2:ece4887c-a2dd-45e8-a766-6e445673b866',
+			});
+
+			var s3 = new AWS.S3({
+			  apiVersion: '2006-03-01',
+			  params: {Bucket: 'maxdrive'}
+			});
+			
+		
+        var file = fileChooser.files[0];
+
+        if (file) {
+		
+            var objKey = file.name;
+            var params = {
+                Key: objKey,
+                ContentType: file.type,
+                Body: file,
+                ACL: 'public-read'
+            };
+
+            s3.putObject(params, function(err, data) {
+                if (err) {
+                    alert('ERROR: ' + err);
+                } else {
+					alert("success");
+                }
+            });
+        } else {
+            alert('Nothing to upload.');
+        }
+    }, false);
+		
+		
+		// listAlbums();
+		
+
+    </script>
+	
+  </body>
+</html>
