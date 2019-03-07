@@ -203,6 +203,16 @@
 		//var main_breadcrumbs = new breadcrumbs('breadcrumb');
 		var resource_table = new datatable("resource-table", ["Name", "Type", "Sharing", "Size"], true, true);
 		
+		/* Pass in as parameter. */
+		var config = {
+			headers: [],
+			files: true,
+			folders: true,
+			target: "",
+			relocate: true,
+			menu: true
+		}
+		
 		
 		document.getElementById('open_menu').addEventListener('click', function(){
 			console.log(9);
@@ -308,7 +318,9 @@
 								/* Parse JSON from response. */
 								user = JSON.parse(this.responseText);
 							}
-
+							
+							console.log(user[0]);
+							
 							/* Add basic JSON schema on users first load. */
 							if(user[0].resources.length == 0){
 								user[0].resources.push({"type": "folder", "items": []});
@@ -330,7 +342,7 @@
 								found_flag = false;
 								/* Has the target folder been reached? */
 								for(var j = 0; j < folder.items.length; j++){
-									if(folder.items[j].name == _this.this_breadcrumbs.items[i]){
+									if(folder.items[j].name == _this.this_breadcrumbs.items[i] && folder.items[j].type == 'folder'){
 										folder = folder.items[j];
 										found_flag = true;
 									}
@@ -432,7 +444,7 @@
 						columns.length = 1;
 					}
 					for(var i = 0; i < columns.length; i++)
-						dt_row.appendChild(el_factory('td', {class: 'clickable'}, columns[i]));
+						dt_row.appendChild(el_factory('td', {class: 'clickable'}, columns[i].toString()));
 					/* Add the action button if enabled. */
 					if(a_btn){
 						dt_row.appendChild(this.generate_action_btn(null, [
@@ -565,35 +577,87 @@
 								var file = this.files[0];
 
 								if (file) {
-								/* Generate GUID for file name. */
-								var objKey = user_id + '/' + file.name;
-								console.log(objKey);
-								var params = {
-									Key: objKey,
-									ContentType: file.type,
-									Body: file,
-									ACL: 'public-read'
-								};
-
-								s3.putObject(params, function(err, data) {
-									if (err) {
-										alert('ERROR: ' + err);
-									} else {
-										alert("success");
-									}
-								});
-								} else {
-									alert('Nothing to upload.');
+									/* Generate GUID for file name. */
+									uuid = uuidv4();
+									var objKey = user_id + '/' + uuid;
+									var params = {
+										Key: objKey,
+										ContentType: file.type,
+										Body: file,
+										ACL: 'public-read'
+									};
+									s3.upload(params, function(err, data) {
+										if (err) {
+										  return $.notify(err.message, "error");
+										}
+										
+										var size = params.Body.size / 1024 /1024;
+										
+										/* Build Payload. */
+										var payload = {
+											"type": 'file',
+											"name": params.Body.name,
+											"size": size,
+											"revisions":[
+												{
+													"uuid": uuid,
+													"name": params.Body.name,
+													"extension": params.Body.type,
+													"size": size, /* MB */
+													"download": "",
+													"modified": params.Body.lastModifiedDate,
+													"date": Date.now(),
+													"preview":"",
+													"comments":"First revision."
+												}
+											]
+										};
+										
+										var xhttp = new XMLHttpRequest();
+										xhttp.onreadystatechange = function() {
+											if (this.readyState == 4 && this.status == 200) {
+												
+												var user = JSON.parse(this.responseText);
+												
+												/* Find target folder. */
+												var folder = user[0].resources[0];
+												for(var i = 1; i < resource_table.this_breadcrumbs.items.length; i++){
+													/* Has the target folder been reached? */
+													for(var j = 0; j < folder.items.length; j++){
+														if(folder.items[j].name == resource_table.this_breadcrumbs.items[i]){
+															folder = folder.items[j];
+														}
+													}
+												}
+												
+												
+												
+												console.log(payload);
+												
+												folder.items.push(payload);
+												
+												//user[0].resources.length = 0;
+												
+												var xhttp1 = new XMLHttpRequest();
+												xhttp1.onreadystatechange = function() {
+													if (this.readyState == 4 && this.status == 200) {
+														resource_table.render(function(){}, false, null, null);
+														$.notify("File \"" + payload.name + "\" added.", "success");
+													}
+												};
+												xhttp1.open("PUT", '/api/users/' + user_id, true);
+												xhttp1.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+												xhttp1.send(JSON.stringify({"user":user[0]}));
+												
+										   }
+										};
+										xhttp.open("GET", '/api/users/' + user_id, true);
+										xhttp.send(); 
+										
+									});
 								}
-								
 							});
 							file.click()
-							
-							
-							
-							
-							/* Add to MongoDB. */
-							
 							
 						}},
 						{"New Folder": function(){ generate_text_modal('Folder', 'Enter your folder name', false, 'Create', create_folder, {}); }}
@@ -648,6 +712,13 @@
 				}
 			}
 		});
+		
+		/* Generates a uuid. */
+		function uuidv4() {
+		  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+			(c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+		  )
+		}
 		
 		/* Set the width of the sidebar to 250px and the left margin of the page content to 250px */
 		function openNav() {
