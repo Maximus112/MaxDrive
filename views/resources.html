@@ -105,6 +105,7 @@
 			display: none;
 		  }
 		}
+		
 	</style>
 	</head>
 	<body>
@@ -170,6 +171,16 @@
 	<script src="https://sdk.amazonaws.com/js/aws-sdk-2.283.1.min.js"></script>
 	<script>
 		
+		AWS.config.region = 'eu-west-2'; // Region
+		AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+			IdentityPoolId: 'eu-west-2:ece4887c-a2dd-45e8-a766-6e445673b866',
+		});
+
+		var s3 = new AWS.S3({
+		  apiVersion: '2006-03-01',
+		  params: {Bucket: 'maxdrive'}
+		});
+		
 		/* Error Codes:
 			-1: Failed to PUT user basic JSON schema.
 		*/
@@ -201,18 +212,15 @@
 		}
 		
 		//var main_breadcrumbs = new breadcrumbs('breadcrumb');
-		var resource_table = new datatable("resource-table", ["Name", "Type", "Sharing", "Size"], true, true);
+		//var resource_table = new datatable("resource-table", ["Name", "Type", "Sharing", "Size"], true, true);
 		
-		/* Pass in as parameter. */
-		var config = {
-			headers: [],
-			files: true,
-			folders: true,
-			target: "",
-			relocate: true,
-			menu: true
-		}
-		
+		var resource_table = new datatable({
+			"action_btn": true,
+			"relocate": true,
+			"headers": ["Name", "Type", "Sharing", "Size"],
+			"target": "resource-table",
+			"files": true
+		});
 		
 		document.getElementById('open_menu').addEventListener('click', function(){
 			console.log(9);
@@ -220,15 +228,18 @@
 		});
 		
 		/* The datatable class encapsulates all functions needed to create and manipulate a datatable on the DOM. */
-		function datatable(target, headers, a_btn, rlcte){
+		function datatable(cfg){
 				
 				/* Could add a config object instead of parameters. */
 				this.config = {
-					"action_btn": true,
-					"relocate": true,
-					"headers": [],
-					"target": null
+					"action_btn": cfg.action_btn,
+					"relocate": cfg.relocate,
+					"headers": cfg.headers,
+					"target": cfg.target,
+					"files" : cfg.files
 				}
+				
+				console.log(this);
 				
 				/* Holds JSON for the render function to use. */
 				this._data = null;
@@ -271,7 +282,7 @@
 							}
 							var breadcrumb = el_factory('li', {class: 'breadcrumb-item', 'data-index': i}, el_factory('a', {href:href}, this.items[i]));
 							/* Attach an event listener if redirection has been disabled. */
-							if(!rlcte){
+							if(parent.config.relocate == false){
 								breadcrumb.addEventListener('click', function(e){
 									e.preventDefault();
 									if(e.target.nodeName == 'A'){
@@ -304,6 +315,7 @@
 					/* Reset selected on render. */
 					this.selected.length = 0;
 					
+					/* Get latest user data. */
 					var xhttp = new XMLHttpRequest();
 					xhttp.onreadystatechange = function() {
 						if (this.readyState == 4 && this.status == 200) {
@@ -318,8 +330,6 @@
 								/* Parse JSON from response. */
 								user = JSON.parse(this.responseText);
 							}
-							
-							console.log(user[0]);
 							
 							/* Add basic JSON schema on users first load. */
 							if(user[0].resources.length == 0){
@@ -355,12 +365,14 @@
 								return window.location.href = '/resources'
 							}
 							
-							/* Just render the table. */
+							/* Just render the current folder */
 							if (!update){ 
 								/* Remove all elements from the table's body. */
 								_this.empty();
-								for(var i = 0; i < folder.items.length; i++)
-									_this.add_row([folder.items[i].name, folder.items[i].type, "private", folder.items[i].size]);
+								for(var i = 0; i < folder.items.length; i++){
+									if(folder.items[i].type == 'folder' || (folder.items[i].type == 'file' && _this.config.files == true))
+										_this.add_row([folder.items[i].name, folder.items[i].type, "private", folder.items[i].size]);
+								}
 								return 0;
 							}
 							
@@ -368,16 +380,17 @@
 							var ret = callback({user: user, folder: folder});
 							
 							/* Update the database with modified data if update is set to true. */
-							if(update && ret == 0){
+							if(update && ret == 0){ /* Don't forget to return 0 from callback. */
 								var xhttp1 = new XMLHttpRequest();
 								xhttp1.onreadystatechange = function() {
 									if (this.readyState == 4 && this.status == 200) {
 										/* Remove all elements from the table's body. */
 										_this.empty();
 										
-										for(var i = 0; i < folder.items.length; i++)
-											_this.add_row([folder.items[i].name, folder.items[i].type, "private", folder.items[i].size]);
-										
+										for(var i = 0; i < folder.items.length; i++){
+											if(folder.items[i].type == 'folder' || (folder.items[i].type == 'file' && _this.config.files == true))
+												_this.add_row([folder.items[i].name, folder.items[i].type, "private", folder.items[i].size]);
+										}
 										$.notify(success_msg, "success");
 									}
 								};
@@ -400,18 +413,21 @@
 						return console.log("error: missing elements argument");
 					var dt_row = document.createElement("tr");
 					/* Click event listener. */
+					var resource_type = columns[1];
 					dt_row.addEventListener("click", function (event) {
-						if(rlcte && event.target.classList[0] == "clickable"){
-							var href = "";
-							for(var i = 0; i < _this.this_breadcrumbs.items.length; i++){
-									href += '/' + _this.this_breadcrumbs.items[i];
+						if(resource_type == 'folder'){
+							if(_this.config.relocate && event.target.classList[0] == "clickable"){
+								var href = "";
+								for(var i = 0; i < _this.this_breadcrumbs.items.length; i++){
+										href += '/' + _this.this_breadcrumbs.items[i];
+								}
+								href += '/' + event.target.parentNode.childNodes[1].innerHTML;
+								window.location.href = href;
+							} else if(event.target.classList[0] == "clickable" && _this.config.relocate == false){
+								_this.this_breadcrumbs.items.push(event.target.parentNode.childNodes[1].innerHTML);
+								_this.this_breadcrumbs.update(_this._data);
+								_this.render(function(){}, false, null, _this._data);
 							}
-							href += '/' + event.target.parentNode.childNodes[1].innerHTML;
-							window.location.href = href;
-						} else if(event.target.classList[0] == "clickable" && rlcte == false){
-							_this.this_breadcrumbs.items.push(event.target.parentNode.childNodes[1].innerHTML);
-							_this.this_breadcrumbs.update(_this._data);
-							_this.render(function(){}, false, null, _this._data);
 						}
 					});
 					dt_row.appendChild(this.generate_checkbox(function(event){
@@ -440,57 +456,122 @@
 						//_this.this_breadcrumbs.items
 					}));
 					/* One column on mobile. */
-					if(window.innerWidth < 768 || headers.length == 1){
+					if(window.innerWidth < 768 || _this.config.headers.length == 1){
 						columns.length = 1;
 					}
 					for(var i = 0; i < columns.length; i++)
-						dt_row.appendChild(el_factory('td', {class: 'clickable'}, columns[i].toString()));
+						dt_row.appendChild(el_factory('td', {class: 'clickable', style:'cursor: pointer;'}, columns[i].toString()));
 					/* Add the action button if enabled. */
-					if(a_btn){
-						dt_row.appendChild(this.generate_action_btn(null, [
-							{"star": function(){console.log('clicked star')}},
-							{"delete": function(){
+					if(_this.config.action_btn){
+					
+						var menu_items = [];
+						
+						var delete_item = {"delete": function(){
+							var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
+							_this.render(function(data){
+								/* Remove resource. */
+								for(var i = 0; i < data.folder.items.length; i++){
+									if(data.folder.items[i].name == name)
+										data.folder.items.splice(i, 1);
+								}
+								return 0;
+							}, true, "\"" + name + "\" deleted.", null);
+						}};
+						
+						var rename_item = {"rename": function(){
+							
+							var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
+							console.log(name);	
+							generate_text_modal(columns[1], "Enter the new " + columns[1] + " name", name, "Rename", function(args){
 								
-								var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
 								_this.render(function(data){
-									/* Remove resource. */
+									/* Check for duplicate folder names. */
 									for(var i = 0; i < data.folder.items.length; i++){
-										if(data.folder.items[i].name == name)
-											data.folder.items.splice(i, 1);
+										if(data.folder.items[i].name == args.INPUT){
+											$.notify("Folder \"" + args.INPUT + "\" already exists.", "error");
+											return -1;
+										}
+									}
+									/* Rename folder. */
+									for(var i = 0; i < data.folder.items.length; i++){
+										if(data.folder.items[i].name == args.ORIGINAL)
+											data.folder.items[i].name = args.INPUT;
 									}
 									return 0;
-								}, true, "Folder \"" + name + "\" deleted.", null);
-
-							}},
-							{"rename": function(){
+								}, true, "Folder \"" + args.ORIGINAL + "\" renamed to \""+ args.INPUT +"\".", null);
+							}, {});
+						
+						}};
+						
+						var move_item = {"move": function(){
+							generate_move_modal(this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML);
+						}};
+						
+						var download_item = {"download": function(){
 							
-								var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
-								
-								generate_text_modal(columns[1], "Enter the new " + columns[1] + " name", name, "Rename", function(args){
+							var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
+						
+							/* Get latest user data. */
+							var xhttp = new XMLHttpRequest();
+							xhttp.onreadystatechange = function() {
+								if (this.readyState == 4 && this.status == 200) {
 									
-									_this.render(function(data){
-										/* Check for duplicate folder names. */
-										for(var i = 0; i < data.folder.items.length; i++){
-											if(data.folder.items[i].name == args.INPUT){
-												$.notify("Folder \"" + args.INPUT + "\" already exists.", "error");
-												return -1;
+									/* Parse JSON from response. */
+									user = JSON.parse(this.responseText);
+									
+									/* Find target folder. */
+									var folder = user[0].resources[0];
+									var found_flag = false;
+									for(var i = 1; i < _this.this_breadcrumbs.items.length; i++){
+										found_flag = false;
+										/* Has the target folder been reached? */
+										for(var j = 0; j < folder.items.length; j++){
+											if(folder.items[j].name == _this.this_breadcrumbs.items[i] && folder.items[j].type == 'folder'){
+												folder = folder.items[j];
+												found_flag = true;
 											}
 										}
-										/* Rename folder. */
-										for(var i = 0; i < data.folder.items.length; i++){
-											if(data.folder.items[i].name == args.ORIGINAL)
-												data.folder.items[i].name = args.INPUT;
+									}
+									
+									/* Get download link. */
+									var download_link = null;
+									for(var i = 0; i < folder.items.length; i++){
+										if(folder.items[i].name == name){
+											download_link = folder.items[i].revisions[folder.items[i].revisions.length -1].download;
 										}
-										return 0;
-									}, true, "Folder \"" + args.ORIGINAL + "\" renamed to \""+ args.INPUT +"\".", null);
-								}, {});
-							}},
-							{"move": function(){
-								generate_move_modal(this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML);
-							}}
-						]));
+									}
+									
+									function downloadURI(uri) {
+									  var link = document.createElement("a");
+									  link.href = uri;
+									  document.body.appendChild(link);
+									  link.click();
+									  document.body.removeChild(link);
+									  delete link;
+									}
+									
+									downloadURI(download_link);
+				
+								}
+							};
+							xhttp.open("GET", '/api/users/' + user_id, true);
+							xhttp.send(); 
+							
+							
+							
+						}};
+						
+						if(resource_type == 'file'){
+							menu_items.push(download_item);
+						}
+						
+						menu_items.push(delete_item);
+						menu_items.push(rename_item);
+						menu_items.push(move_item);
+						
+						dt_row.appendChild(this.generate_action_btn(null, menu_items));
 					}
-					document.getElementById(this.target + '-body').appendChild(dt_row);
+					document.getElementById(_this.config.target + '-body').appendChild(dt_row);
 				}
 				
 				this.action_btn = function(id){
@@ -521,14 +602,16 @@
 				
 				/* Removes all nodes from the table's body. */
 				this.empty = function(){
-					var myNode = document.getElementById(this.target + '-body');
+					var _this = this;
+					var myNode = document.getElementById(_this.config.target + '-body');
 					while (myNode.firstChild) {
 						myNode.removeChild(myNode.firstChild);
 					}
 				}
 				
 				this.destroy = function(){
-					var element = document.getElementById(this.target);
+					var _this = this;
+					var element = document.getElementById(_this.config.target);
 					while (element.firstChild) {
 						element.removeChild(element.firstChild);
 					}
@@ -542,10 +625,10 @@
 				
 				/* Constructor */
 				this.init = function(target, headers){
+					var _this = this;
 					if(target === 'undefined')
 						return console.log("error: table target required");
-					this.target = target;
-					this.num_col = headers.length;
+					_this.config.target = target;
 					var dt_row = document.createElement("tr");
 					dt_row.appendChild(el_factory('th'));
 					/* One column on mobile. */
@@ -554,28 +637,19 @@
 					}
 					for(var i = 0; i < headers.length; i++)
 						dt_row.appendChild(el_factory('th', {}, headers[i]));
-					if(a_btn){
+						
+					if(_this.config.action_btn){
 						dt_row.appendChild(this.generate_action_btn("action-btn", [
 						{"Upload file": function(){
 							
 							/* Open file dialog. */
 							var file = el_factory('input', {type: 'file'});
 							file.addEventListener('change', function(){
-							/* Upload to AWS. */
-								
-								AWS.config.region = 'eu-west-2'; // Region
-								AWS.config.credentials = new AWS.CognitoIdentityCredentials({
-									IdentityPoolId: 'eu-west-2:ece4887c-a2dd-45e8-a766-6e445673b866',
-								});
-
-								var s3 = new AWS.S3({
-								  apiVersion: '2006-03-01',
-								  params: {Bucket: 'maxdrive'}
-								});
-								
 							
+								/* Upload to AWS. */
 								var file = this.files[0];
 
+								/* Upload to AWS. */
 								if (file) {
 									/* Generate GUID for file name. */
 									uuid = uuidv4();
@@ -584,93 +658,72 @@
 										Key: objKey,
 										ContentType: file.type,
 										Body: file,
-										ACL: 'public-read'
+										ACL: 'public-read',
+										ContentDisposition: "attachment; filename=" + file.name
 									};
-									s3.upload(params, function(err, data) {
+									
+									s3.upload(params, function(err, res) {
 										if (err) {
-										  return $.notify(err.message, "error");
+											$.notify(err.message, "error");
+											ret = -1;
 										}
-										
-										var size = params.Body.size / 1024 /1024;
-										
-										/* Build Payload. */
-										var payload = {
-											"type": 'file',
-											"name": params.Body.name,
-											"size": size,
-											"revisions":[
-												{
-													"uuid": uuid,
-													"name": params.Body.name,
-													"extension": params.Body.type,
-													"size": size, /* MB */
-													"download": "",
-													"modified": params.Body.lastModifiedDate,
-													"date": Date.now(),
-													"preview":"",
-													"comments":"First revision."
+										resource_table.render(function(data){
+											
+											var ret = 0;
+											
+											console.log(file);
+											
+											/* Check for duplicate fie names before uploading to S3. */
+											for(var i = 0; i < data.folder.items.length; i++){
+												if(data.folder.items[i].name == file.name){
+													$.notify("File with name \"" + file.name + "\" already exists.", "error");
+													return -1;
 												}
-											]
-										};
-										
-										var xhttp = new XMLHttpRequest();
-										xhttp.onreadystatechange = function() {
-											if (this.readyState == 4 && this.status == 200) {
-												
-												var user = JSON.parse(this.responseText);
-												
-												/* Find target folder. */
-												var folder = user[0].resources[0];
-												for(var i = 1; i < resource_table.this_breadcrumbs.items.length; i++){
-													/* Has the target folder been reached? */
-													for(var j = 0; j < folder.items.length; j++){
-														if(folder.items[j].name == resource_table.this_breadcrumbs.items[i]){
-															folder = folder.items[j];
-														}
+											}
+													
+											/* Build Payload. */
+											var payload = {
+												"type": 'file',
+												"name": params.Body.name,
+												"size": params.Body.size,
+												"revisions":[
+													{
+														"uuid": uuid,
+														"name": params.Body.name,
+														"extension": params.Body.type,
+														"size": params.Body.size,
+														"download": res.Location,
+														"modified": params.Body.lastModifiedDate,
+														"date": Date.now(),
+														"preview":"",
+														"comments":"First revision."
 													}
-												}
-												
-												
-												
-												console.log(payload);
-												
-												folder.items.push(payload);
-												
-												//user[0].resources.length = 0;
-												
-												var xhttp1 = new XMLHttpRequest();
-												xhttp1.onreadystatechange = function() {
-													if (this.readyState == 4 && this.status == 200) {
-														resource_table.render(function(){}, false, null, null);
-														$.notify("File \"" + payload.name + "\" added.", "success");
-													}
-												};
-												xhttp1.open("PUT", '/api/users/' + user_id, true);
-												xhttp1.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
-												xhttp1.send(JSON.stringify({"user":user[0]}));
-												
-										   }
-										};
-										xhttp.open("GET", '/api/users/' + user_id, true);
-										xhttp.send(); 
-										
+												]
+											};
+											
+											data.folder.items.push(payload);
+											
+											return 0;
+											
+										}, true, "File \"" + params.Body.name + "\" uploaded successfully.", null);	
 									});
 								}
-							});
-							file.click()
-							
+							})
+							file.click();
 						}},
 						{"New Folder": function(){ generate_text_modal('Folder', 'Enter your folder name', false, 'Create', create_folder, {}); }}
 						]));
+						
 					}
+					
 					var dt = el_factory('table', {class: 'table'}, 
-								el_factory('thead', {}, dt_row), el_factory('tbody', {id: this.target + '-body'})
+								el_factory('thead', {}, dt_row), el_factory('tbody', {id: _this.config.target + '-body'})
 							);
-					this.this_breadcrumbs = new this.breadcrumbs(target, this);
+					_this.this_breadcrumbs = new this.breadcrumbs(target, this);
 					document.getElementById(target).appendChild(dt);
 				}
 				
-				this.init(target, headers);
+				this.init(this.config.target, this.config.headers);
 			}
 		
 		document.addEventListener("DOMContentLoaded", function(event) {
@@ -738,49 +791,23 @@
 		}
 		
 		function create_folder(args){
-
-			var xhttp = new XMLHttpRequest();
-			xhttp.onreadystatechange = function() {
-				if (this.readyState == 4 && this.status == 200) {
-					
-					var user = JSON.parse(this.responseText);
-					
-					/* Find target folder. */
-					var folder = user[0].resources[0];
-					for(var i = 1; i < resource_table.this_breadcrumbs.items.length; i++){
-						/* Has the target folder been reached? */
-						for(var j = 0; j < folder.items.length; j++){
-							if(folder.items[j].name == resource_table.this_breadcrumbs.items[i]){
-								folder = folder.items[j];
-							}
-						}
+			
+			resource_table.render(function(data){
+			
+				/* Check for duplicate folder names. */
+				for(var i = 0; i < data.folder.items.length; i++){
+					if(data.folder.items[i].name == args.INPUT){
+						$.notify("Folder \"" + args.INPUT + "\" already exists.", "error");
+						return -1;
 					}
+				}
 					
-					/* Check for duplicate folder names. */
-					for(var i = 0; i < folder.items.length; i++){
-						if(folder.items[i].name == args.INPUT){
-							return $.notify("Folder \"" + args.INPUT + "\" already exists.", "error");
-						}
-					}
+				data.folder.items.push({"name": args.INPUT, "size": "0MB", "type": "folder", items: []});
+				
+				return 0;
 					
-					folder.items.push({"name": args.INPUT, "size": "0MB", "type": "folder", items: []});
-					
-					//user[0].resources[0].items.length = 0;
-					var xhttp1 = new XMLHttpRequest();
-					xhttp1.onreadystatechange = function() {
-						if (this.readyState == 4 && this.status == 200) {
-							resource_table.render(function(){}, false, null, null);
-							$.notify("Folder \"" + args.INPUT + "\" added.", "success");
-						}
-					};
-					xhttp1.open("PUT", '/api/users/' + user_id, true);
-					xhttp1.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
-					xhttp1.send(JSON.stringify({"user":user[0]}));
-					
-			   }
-			};
-			xhttp.open("GET", '/api/users/' + user_id, true);
-			xhttp.send(); 
+			}, true, "Folder \"" + args.INPUT + "\" added.", null);
+			
 		}
 		
 		
@@ -890,7 +917,19 @@
 					
 				  $(document.body).append(modal);
 				  
-				  var move_table = new datatable('move-modal-body', ["Name"], false, false);
+				  //var move_table = new datatable('move-modal-body', ["Name"], false, false);
+				
+					var move_table = new datatable({
+						"action_btn": false,
+						"relocate": false,
+						"headers": ["Name"],
+						"target": "move-modal-body",
+						"files": false
+					});
+				
+				 
+				  
+				  
 				  move_table.render(function(){}, false, null, user);
 				  
 				  
@@ -922,7 +961,7 @@
 						xhttp1.onreadystatechange = function() {
 							if (this.readyState == 4 && this.status == 200) {
 								resource_table.render(function(){}, false, null, null);
-								$.notify("Folder moved to \"" + path[0] + "\".", "success");
+								$.notify("Folder moved to \"" + folder.name + "\".", "success");
 							}
 						};
 						xhttp1.open("PUT", '/api/users/' + user_id, true);
