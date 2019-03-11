@@ -211,15 +211,15 @@
 		  document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
 		}
 		
-		//var main_breadcrumbs = new breadcrumbs('breadcrumb');
-		//var resource_table = new datatable("resource-table", ["Name", "Type", "Sharing", "Size"], true, true);
-		
 		var resource_table = new datatable({
 			"action_btn": true,
 			"relocate": true,
 			"headers": ["Name", "Type", "Sharing", "Size"],
 			"target": "resource-table",
-			"files": true
+			"files": true,
+			"select_btn": true,
+			"breadcrumbs": true,
+			"hdr_action_btn" : true
 		});
 		
 		document.getElementById('open_menu').addEventListener('click', function(){
@@ -236,7 +236,10 @@
 					"relocate": cfg.relocate,
 					"headers": cfg.headers,
 					"target": cfg.target,
-					"files" : cfg.files
+					"files" : cfg.files,
+					"select_btn" : cfg.select_btn,
+					"breadcrumbs" : cfg.breadcrumbs,
+					"hdr_action_btn": cfg.hdr_action_btn 
 				}
 				
 				console.log(this);
@@ -365,19 +368,21 @@
 								return window.location.href = '/resources'
 							}
 							
+							/* Use call by reference to manipulate folder data in callback. */
+							var ret = callback({user: user, folder: folder});
+							
 							/* Just render the current folder */
 							if (!update){ 
 								/* Remove all elements from the table's body. */
 								_this.empty();
 								for(var i = 0; i < folder.items.length; i++){
 									if(folder.items[i].type == 'folder' || (folder.items[i].type == 'file' && _this.config.files == true))
-										_this.add_row([folder.items[i].name, folder.items[i].type, "private", folder.items[i].size]);
+										_this.add_row([folder.items[i].name, folder.items[i].type, "private", folder.items[i].size], i);
 								}
 								return 0;
 							}
 							
-							/* Use call by reference to manipulate folder data in callback. */
-							var ret = callback({user: user, folder: folder});
+							
 							
 							/* Update the database with modified data if update is set to true. */
 							if(update && ret == 0){ /* Don't forget to return 0 from callback. */
@@ -389,7 +394,7 @@
 										
 										for(var i = 0; i < folder.items.length; i++){
 											if(folder.items[i].type == 'folder' || (folder.items[i].type == 'file' && _this.config.files == true))
-												_this.add_row([folder.items[i].name, folder.items[i].type, "private", folder.items[i].size]);
+												_this.add_row([folder.items[i].name, folder.items[i].type, "private", folder.items[i].size], i);
 										}
 										$.notify(success_msg, "success");
 									}
@@ -405,13 +410,14 @@
 				}
 				
 				/* Need to check for resource type for action menu. */
-				this.add_row = function(columns){
+				this.add_row = function(columns, index){
 				
 					var _this = this;
 					/* Validation. */
 					if(typeof columns === 'undefined') 
 						return console.log("error: missing elements argument");
 					var dt_row = document.createElement("tr");
+					dt_row.setAttribute("data-index", index);
 					/* Click event listener. */
 					var resource_type = columns[1];
 					dt_row.addEventListener("click", function (event) {
@@ -430,31 +436,36 @@
 							}
 						}
 					});
-					dt_row.appendChild(this.generate_checkbox(function(event){
-						/* Add absolute path to selected array. */
-						
-							var path = "";
-							for(var i = 0; i < _this.this_breadcrumbs.items.length; i++){
-									path += '/' + _this.this_breadcrumbs.items[i];
-							}
-							path += '/' + event.target.parentNode.parentNode.nextSibling.innerHTML;
+					
+					if(_this.config.select_btn){
+					
+						dt_row.appendChild(this.generate_checkbox(function(event){
+							/* Add absolute path to selected array. */
 							
-							/* Check for duplicates. */
-							var f_flg = false;
-							for(var i = 0; i < _this.selected.length; i++){
-								if(_this.selected[i] == path){
-									f_flg = true;
-									/* Remove. */
-									_this.selected.splice(i, 1);
+								var path = "";
+								for(var i = 0; i < _this.this_breadcrumbs.items.length; i++){
+										path += '/' + _this.this_breadcrumbs.items[i];
 								}
-							}
-							
-							if(!f_flg)
-								_this.selected.push(path);
+								path += '/' + event.target.parentNode.parentNode.nextSibling.innerHTML;
 								
-							console.log(_this.selected);
-						//_this.this_breadcrumbs.items
-					}));
+								/* Check for duplicates. */
+								var f_flg = false;
+								for(var i = 0; i < _this.selected.length; i++){
+									if(_this.selected[i] == path){
+										f_flg = true;
+										/* Remove. */
+										_this.selected.splice(i, 1);
+									}
+								}
+								
+								if(!f_flg)
+									_this.selected.push(path);
+									
+								console.log(_this.selected);
+							//_this.this_breadcrumbs.items
+						}))
+					
+					}
 					/* One column on mobile. */
 					if(window.innerWidth < 768 || _this.config.headers.length == 1){
 						columns.length = 1;
@@ -465,6 +476,7 @@
 					if(_this.config.action_btn){
 					
 						var menu_items = [];
+						
 						
 						var delete_item = {"delete": function(){
 							var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
@@ -532,7 +544,7 @@
 											}
 										}
 									}
-									
+									console.log(folder);
 									/* Get download link. */
 									var download_link = null;
 									for(var i = 0; i < folder.items.length; i++){
@@ -556,18 +568,268 @@
 							};
 							xhttp.open("GET", '/api/users/' + user_id, true);
 							xhttp.send(); 
+	
+						}};
+						
+						/* Open a modal with a table detailing the version history of the file. */
+						var ver_hist_item = { "version history" : function(){
 							
+							var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
 							
+							var xhttp = new XMLHttpRequest();
+							xhttp.onreadystatechange = function() {
+								if (this.readyState == 4 && this.status == 200) {
+									
+									var user = JSON.parse(this.responseText);
+									
+									/* Find target folder. */
+									var folder = user[0].resources[0];
+									for(var i = 1; i < resource_table.this_breadcrumbs.items.length; i++){
+										/* Has the target folder been reached? */
+										for(var j = 0; j < folder.items.length; j++){
+											if(folder.items[j].name == resource_table.this_breadcrumbs.items[i]){
+												folder = folder.items[j];
+											}
+										}
+									}
+									
+									/* Generate Close Button. */
+									var close_btn = el_factory('button', {type: "button", class: "close", "data-dismiss": "modal", "aria-label": "Close"}, el_factory('span', {"aria-hidden": "true"}, "x"));
+									
+									/* Generate Title. */
+									var title = el_factory('label', {for: 'NewDocumentName', class: 'col-form-label', style: 'padding: 10px 0px; color: black; font-weight: normal; font-size: large;'}, "Version History");
+							
+									/* Generate Form. */
+									var form = el_factory('form', {id: 'modal_form'}, close_btn, title);
+									
+									/* Generate Modal. */
+									var modal = el_factory('div', {class: 'modal fade', style: 'top: 30% !important;', id: 'ver_hist_modal', tabindex: '-1', role: 'dialog', 'aria-hidden': 'true'},
+										el_factory('div', {class: 'modal-dialog', style: 'max-width: 350px !important;', role: 'document'},
+											el_factory('div', {class: 'modal-content', style: 'border-radius: 0; box-shadow: 0px 0px 10px 1px grey;'},
+												el_factory('div', {class: 'modal-body', id: 'ver-hist-modal-body'}, form)
+											)
+										)
+									);
+									
+								  $(document.body).append(modal);
+									
+									var revisions = null;
+									
+									/* Find revisions. */
+									for(var i = 0; i < folder.items.length; i++){
+										if(folder.items[i].name == name){
+											revisions = folder.items[i].revisions;
+										}
+									}
+								
+									var ver_hist_table = new datatable({
+										"action_btn": true,
+										"relocate": false,
+										"headers": ["Name", "Size", "Date"],
+										"target": "ver-hist-modal-body",
+										"select_btn": false,
+										"breadcrumbs": false
+									});
+								  
+								  console.log(revisions);
+								 // ver_hist_table.render_revisions(revisions);
+								  
+								  	var revisions = null;
+									
+									/* Find revisions. */
+									for(var i = 0; i < folder.items.length; i++){
+										if(folder.items[i].name == name){
+											revisions = folder.items[i].revisions;
+										}
+									}
+									
+									
+								
+									for(var i = 0; i < revisions.length; i++){
+										ver_hist_table.add_row([revisions[i].name, revisions[i].size, revisions[i].date], i);
+									}
+								  
+		
+								  
+									/* Open the text modal. */
+									$('#ver_hist_modal').modal('toggle');
+									 /* Destroy the modal on close. */
+									  $('#ver_hist_modal').on('hidden.bs.modal', function() {
+										var elem = document.querySelector('#ver_hist_modal');
+										elem.parentNode.removeChild(elem);
+									  })
+									
+									
+							   }
+							}
+							xhttp.open("GET", '/api/users/' + user_id, true);
+							xhttp.send(); 
 							
 						}};
 						
+						/* Add a new file revision. */
+						var update = {
+							"update": function(){
+								
+								/* TODO - Ensure revision names are the same. */
+								
+								var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
+							
+								/* Open file dialog. */
+								var file = el_factory('input', {type: 'file'});
+								file.addEventListener('change', function(){
+								
+									/* Upload to AWS. */
+									var file = this.files[0];
+
+									/* Upload to AWS. */
+									if (file) {
+										/* Generate GUID for file name. */
+										uuid = uuidv4();
+										var objKey = user_id + '/' + uuid;
+										var params = {
+											Key: objKey,
+											ContentType: file.type,
+											Body: file,
+											ACL: 'public-read',
+											ContentDisposition: "attachment; filename=" + file.name
+										};
+										
+										s3.upload(params, function(err, res) {
+											if (err) {
+												$.notify(err.message, "error");
+												ret = -1;
+											}
+											resource_table.render(function(data){
+												
+												var ret = 0;
+												
+												console.log(file);
+												
+												var revision = {
+													"uuid": uuid,
+													"name": params.Body.name,
+													"extension": params.Body.type,
+													"size": params.Body.size,
+													"download": res.Location,
+													"modified": params.Body.lastModifiedDate,
+													"date": Date.now(),
+													"preview":"",
+													"comments":"First revision."
+												};
+												
+												/* Check for duplicate fie names before uploading to S3. */
+												for(var i = 0; i < data.folder.items.length; i++){
+													if(data.folder.items[i].name == name){
+														data.folder.items[i].revisions.push(revision);
+													}
+												}
+												
+												return 0;
+												
+											}, true, "Revision added successfully.", null);	
+										});
+									}
+								})
+								file.click();
+							}
+						};
+						
+						var delete_revision = {
+							"delete": function(){
+								var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[0].innerHTML;
+								var _this = this;
+								
+								resource_table.render(function(data){
+									
+									/* TODO - Disable deletion on last revision. */
+
+									var index = _this.parentNode.parentNode.parentNode.parentNode.dataset.index;
+									for(var i = 0; i < data.folder.items.length; i++){
+										if(data.folder.items[i].name == name){
+											
+											data.folder.items[i].revisions.splice(index, 1);
+										}
+									}
+									
+									$('#ver_hist_modal').modal('toggle');
+									
+									return 0;
+									
+								}, true, "Revision deleted successfully.", null);	
+								
+						}};
+						
+						var download_revision = {
+							"download": function(){
+								
+								
+								
+								var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[0].innerHTML;
+								var _this = this;
+								var index = _this.parentNode.parentNode.parentNode.parentNode.dataset.index;
+								
+								resource_table.render(function(data){
+									
+									
+									/* Get download link. */
+									var download_link = null;
+									for(var i = 0; i < data.folder.items.length; i++){
+										if(data.folder.items[i].name == name){
+											download_link = data.folder.items[i].revisions[index].download;
+										}
+									}
+									
+									
+									
+									console.log(download_link);
+									
+									function downloadURI(uri) {
+									  var link = document.createElement("a");
+									  link.href = uri;
+									  document.body.appendChild(link);
+									  link.click();
+									  document.body.removeChild(link);
+									  delete link;
+									}
+									
+									downloadURI(download_link);
+									
+									return 0;
+								
+								}, false, null, null);
+							}
+						};
+						
+						
+						var view_revision = {
+							"view": function(){
+								
+							}
+						};
+						
 						if(resource_type == 'file'){
 							menu_items.push(download_item);
+							menu_items.push(ver_hist_item);
+							menu_items.push(update);
 						}
 						
-						menu_items.push(delete_item);
-						menu_items.push(rename_item);
-						menu_items.push(move_item);
+						if(resource_type == 'file' || resource_type == 'folder'){
+						
+							menu_items.push(delete_item);
+							menu_items.push(rename_item);
+							menu_items.push(move_item);
+						
+						}
+						
+						/* It must be a revision. */
+						if(resource_type != 'file' && resource_type != 'folder'){
+						
+							menu_items.push(view_revision);
+							menu_items.push(download_revision);
+							menu_items.push(delete_revision);
+						
+						}
 						
 						dt_row.appendChild(this.generate_action_btn(null, menu_items));
 					}
@@ -630,7 +892,8 @@
 						return console.log("error: table target required");
 					_this.config.target = target;
 					var dt_row = document.createElement("tr");
-					dt_row.appendChild(el_factory('th'));
+					if(_this.config.select_btn) 
+						dt_row.appendChild(el_factory('th'));
 					/* One column on mobile. */
 					if(window.innerWidth < 768){
 						headers.length = 1;
@@ -638,7 +901,7 @@
 					for(var i = 0; i < headers.length; i++)
 						dt_row.appendChild(el_factory('th', {}, headers[i]));
 						
-					if(_this.config.action_btn){
+					if(_this.config.hdr_action_btn){
 						dt_row.appendChild(this.generate_action_btn("action-btn", [
 						{"Upload file": function(){
 							
@@ -719,7 +982,8 @@
 					var dt = el_factory('table', {class: 'table'}, 
 								el_factory('thead', {}, dt_row), el_factory('tbody', {id: _this.config.target + '-body'})
 							);
-					_this.this_breadcrumbs = new this.breadcrumbs(target, this);
+					if(_this.config.breadcrumbs)
+						_this.this_breadcrumbs = new this.breadcrumbs(target, this);
 					document.getElementById(target).appendChild(dt);
 				}
 				
@@ -924,7 +1188,9 @@
 						"relocate": false,
 						"headers": ["Name"],
 						"target": "move-modal-body",
-						"files": false
+						"files": false,
+						"select_btn": true,
+						"breadcrumbs": true
 					});
 				
 				 
@@ -953,6 +1219,16 @@
 								}
 							}
 						}
+						
+						/* Check for duplicate resource names. */
+						for(var i = 0; i < folder.items.length; i++){
+							if(folder.items[i].name == original_resource.name){
+								$.notify("\"" + original_resource.name + "\" already exists in folder \"" + folder.name + "\".", "error");
+								return -1;
+							}
+						}
+						
+						
 						/* Add original to folder. */
 						folder.items.push(original_resource);
 						
@@ -961,7 +1237,7 @@
 						xhttp1.onreadystatechange = function() {
 							if (this.readyState == 4 && this.status == 200) {
 								resource_table.render(function(){}, false, null, null);
-								$.notify("Folder moved to \"" + folder.name + "\".", "success");
+								$.notify("\"" + original_resource.name + "\" moved to folder \"" + folder.name + "\".", "success");
 							}
 						};
 						xhttp1.open("PUT", '/api/users/' + user_id, true);
