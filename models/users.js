@@ -4,11 +4,15 @@ const jwt = require('jsonwebtoken');
 
 const { Schema } = mongoose;
 
+/* Subdocument for representing files and folders. */
+const resource_schema = new Schema({ 'guid': String, 'name': String, 'type': String, 'items': Array, 'revisions': Array, 'sharing': Array, 'activity': Array });
+
+/* The main user schema. */
 const users_schema = new Schema({
 	email: String,
 	hash: String,
 	salt: String,
-	resources: [],
+	resources: resource_schema,
 	favourites: [],
 	recent: [],
 	shared_with_me: [],

@@ -49,7 +49,7 @@
 				}
 				
 				$.ajax({
-					type: "POST",
+					type: "POST",  
 					url: '/api/users',
 					data: {email: document.getElementById('email_input').value, password: password_1},
 					success: function(res){
@@ -58,7 +58,7 @@
 						}
 						//console.log(res);
 						$.notify(res.success, "success"); 
-						window.location.href = '/resources';
+						window.location.href = '/gateway';
 						/*
 						$.notify(res.success, "success"); 
 						sleep(3);

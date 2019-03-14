@@ -5,6 +5,8 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
+const mongo = require('mongodb');
+const uuidv1 = require('uuid/v1');
 
 mongoose.promise = global.Promise;
 
@@ -21,12 +23,18 @@ app.use(function(err, req, res, next){
 	if(err) return res.json(err);
 });
 
+/* Connect to MongoDB Atlas. */
+/*
 fs.readFile('mongouri.txt', 'utf8', function(err, contents){
 	if(err)
 		console.log(err);
 	else
 		mongoose.connect(contents, {useNewUrlParser: true});
 });
+*/
+
+/* Connect to local MongoDB. */
+mongoose.connect('mongodb://localhost:27017/test', {useNewUrlParser: true});
 
 require('./models/users');
 require('./models/resources');
@@ -50,6 +58,16 @@ app.get('/login',function(req,res) {
 	res.render('login.html', {name:'max'});
 });  
 
+/* Handle route to the users root folder. */
+app.get('/gateway', verify_token, function(req,res) {
+	
+	if(mongoose.Types.ObjectId.isValid(req.client_id)){
+		res.redirect('/' + req.client_id + '/root');
+	}
+	
+}); 
+
+/*
 app.get('/resources*', verify_token ,function(req,res) {
 	if(mongoose.Types.ObjectId.isValid(req.user_id)){
 		var id = mongoose.Types.ObjectId(req.user_id);
@@ -64,9 +82,56 @@ app.get('/resources*', verify_token ,function(req,res) {
 		return res.json({error: "user id '" + req.user_id + "' is invalid."});
 	}
 });
+*/
 
 app.get('/logout',function(req,res) {
 	res.render('login.html', {name:'max'});
+});
+
+/* Main navigation for application. */
+app.get('/:owner_id/:resource_id', verify_token, function(req,res) {
+		
+	if(mongoose.Types.ObjectId.isValid(req.params.owner_id)){
+		var id = mongoose.Types.ObjectId(req.params.owner_id);
+		Users.find({_id: id}, function(err, user){
+			if(user.length === 0){ 
+				return res.json({error: "Owner with id " + req.params.owner_id + " doesn't exist."});
+			} else{
+				console.log(user);
+				function find_folder(obj){
+					var res = null;
+					if(obj.guid == req.params.resource_id){
+						res = obj;
+					} else {
+						for(var i = 0; i < obj.items.length; i++){
+							if(obj.items[i].type == 'folder'){
+								res = find_folder(obj.items[i]);
+							}
+						}
+					}
+					return res;
+				}
+				
+				var folder = find_folder(user[0].resources);
+				if(folder == null){
+					return res.json({error: "Resource id '" + req.params.resource_id + "' is invalid."});
+				}
+				
+				if(req.params.owner_id != req.client_id){
+					return res.json({error: "You don't have access to this resource."});
+				}
+				
+				/* TODO - Check if user is authorized to access resource through sharing. */
+				
+				console.log(JSON.stringify(folder));
+				
+				return res.render('resources.html', {client_id: req.client_id, folder: JSON.stringify(folder), owner: user[0]});
+			}
+		});
+	} else {
+		return res.json({error: "user id '" + req.params.user_id + "' is invalid."});
+	}
+	
 });
 
 /************************************/
@@ -78,7 +143,7 @@ function verify_token(req, res, next){
 	jwt.verify(token, 'secret', function(err, decoded) {
 		if (err) res.redirect('/login');
 		//if everything good, save to request for use in other routes
-		req.user_id = decoded._id;
+		req.client_id = decoded._id;
 		return next();
 	});
 }
@@ -89,7 +154,7 @@ app.get('/api/users', (req, res, next) => {
 		if(users.length === 0)
 			return res.status(422).sendStatus(400);
 		
-		return res.json(users);
+		return res.json(users); 
 	});
 });
 
@@ -120,11 +185,16 @@ app.post('/api/users', (req, res, err) => {
 			return res.json({error : "Email address is already registered to another user."});
 		else {
 			
-			console.log("email unique");
-			
 			var user = {
 				email: req.body.email,
-				password: req.body.password
+				password: req.body.password,
+				resources: {
+					"type": "folder",
+					"guid": "root",
+					"name": "root",
+					"items": [],
+					"revisions": []
+				}
 			}
 			
 			const finalUser = new Users(user);
@@ -150,7 +220,7 @@ app.post('/api/login', (req, res, err) => {
 				email: 'is required'
 			}
 		});
-	}
+	} 
 	if(!password){
 		return res.status(422).json({
 			errors: {
@@ -239,6 +309,17 @@ app.delete('/api/users/:id', (req, res) => {
 });
 
 app.get('/api/users/current', verify_token, (req, res) => {
+	
+	var owner_id = req.body.resource.owner_id;
+	var path = req.body.resource.path;
+	var type = req.body.resource.type;
+	var parent_id = req.body.resource.parent_id;
+	var revisions = req.body.resource.revisions;
+	var sharing = req.body.resource.sharing;
+	var deleted = req.body.resource.deleted;
+	var activity = req.body.resource.activity;
+	
+	
 	return Users.findById(req.user_id).then((user) =>{
 		if(user.length === 0){
 			return res.sendStatus(400);
@@ -246,8 +327,6 @@ app.get('/api/users/current', verify_token, (req, res) => {
 		return res.json({user: user.to_auth_json() });
 	});
 });
-
-
 
 app.get('/api/resources', (req, res) =>{
 	return Resources.find({}).then((resource) =>{
@@ -275,46 +354,30 @@ app.get('/api/resources/:id', (req, res) => {
 	
 });
 
-app.post('/api/resources', (req, res) =>{
-	
-	if(req.body.resource === undefined)
-		return res.json({error: 'Please pass resource as JSON object in request body.' });
-	
-	/* Validate the resource object. */
+/* Create a new resource. 
 
-	var owner_id = req.body.resource.owner_id;
-	var path = req.body.resource.path;
-	var type = req.body.resource.type;
-	var parent_id = req.body.resource.parent_id;
-	var revisions = req.body.resource.revisions;
-	var sharing = req.body.resource.sharing;
-	var deleted = req.body.resource.deleted;
-	var activity = req.body.resource.activity;
+@param owner_id
+@param folder_id
+@param type
+@param revisions
+@param owner_id
+
+*/
+app.post('/api/users/:user_id/resources', verify_token, (req, res) =>{
+
+	var owner_id = req.params.user_id;
+	var folder_id = req.body.folder_id;
+	var name = req.body.name;
+	var type = req.body.type;
 	
 	if(owner_id === undefined)
-		return res.json({ error: 'resource.owner_id is required.' });
-	if(path === undefined)
-		return res.json({ error: 'resource.path required' });
+		return res.json({ error: 'owner_id is required.' });
+	if(folder_id === undefined)
+		return res.json({ error: 'folder_id is required.' });
+	if(name === undefined)
+		return res.json({ error: 'name is required.' });
 	if(type === undefined)
-		return res.json({ error: 'resource.type required' });
-	if(parent_id === undefined)
-		return res.json({ error: 'resource.parent_id required' });
-	if(revisions === undefined)
-		return res.json({ error: 'resource.revisions required' });
-	if(sharing === undefined)
-		return res.json({ error: 'resource.sharing required' });
-	if(sharing.link === undefined)
-		return res.json({ error: 'resource.sharing.link required' });
-	if(sharing.link.url === undefined)
-		return res.json({ error: 'resource.sharing.link.url required' });
-	if(sharing.link.edit === undefined)
-		return res.json({ error: 'resource.sharing.link.edit required' });
-	if(sharing.members === undefined)
-		return res.json({ error: 'resource.sharing.members required' });
-	if(deleted === undefined)
-		return res.json({ error: 'resource.owner_id deleted' });
-	if(activity === undefined)
-		return res.json({ error: 'resource.activity required' });
+		return res.json({ error: 'type is required' });
 	
 	/* Check if owner_id is valid. */
 	if(mongoose.Types.ObjectId.isValid(owner_id)){
@@ -323,43 +386,104 @@ app.post('/api/resources', (req, res) =>{
 			if(user.length === 0){
 				return res.json({error: "owner_id " + owner_id + " not found."});
 			} else{
-				/* Check if parent_id is valid. */
-				if(parent_id != owner_id){
-					if(mongoose.Types.ObjectId.isValid(parent_id)){
-						id = mongoose.Types.ObjectId(parent_id);
-						Resources.find({_id: id}, function(err, resource){
-							if(resource.length === 0){
-								return res.json({error: " Resource wiith id " + parent_id + " not found."});
-							} else{
-								const resource = new Resources({
-									owner_id: owner_id,
-									path: path,
-									type: type,
-									parent_id: parent_id,
-									revisions: revisions,
-									sharing: sharing,
-									deleted: deleted,
-									activity: activity
-								});
-								return resource.save().then(()=> res.json(resource));
-							}
-						});
+				
+				function find_folder(obj){
+					var res = null;
+					if(obj.guid == folder_id){
+						res = obj;
 					} else {
-						return res.json({error: "parent_id '" + parent_id + "' is invalid."});
+						for(var i = 0; i < obj.items.length; i++){
+							if(obj.items[i].type == 'folder'){
+								res = find_folder(obj.items[i]);
+							}
+						}
 					}
-				} else {
-					const resource = new Resources({
-						owner_id: owner_id,
-						path: path,
-						type: type,
-						parent_id: parent_id,
-						revisions: revisions,
-						sharing: sharing,
-						deleted: deleted,
-						activity: activity
-					});			
-					return resource.save().then(()=> res.json(resource));
+					return res;
 				}
+				
+				var folder = find_folder(user[0].resources);
+				if(folder == null){
+					return res.json({error: "Resource id '" + req.params.folder_id + "' is invalid."});
+				}
+				
+				/* Is user the owner of this resource? */
+				if(owner_id != req.client_id){
+					return res.json({error: "User with id " + req.client_id + " does not have access to this resource."});
+				}
+				
+				/* TODO - Check if user is authorized to access resource through sharing. */
+				
+				folder.items.push(
+					{
+						'guid': uuidv1(), 'name': name, 'type': type, 'items': [], 'revisions': [], 'sharing': [], 'activity': []
+					}
+				);
+				
+				const finalUser = new Users(user[0]);
+				return finalUser.save().then(()=> res.json(finalUser));
+				
+			}
+		});
+	} else {
+		return res.json({error: "owner_id '" + owner_id + "' is invalid."});
+	}
+	
+});
+
+/* Delete a resource. */
+app.delete('/api/users/:user_id/resources/:resource_id', verify_token, (req, res) =>{
+	
+	var owner_id = req.params.user_id;
+	var folder_id = req.body.folder_id;
+	var resource_id = req.params.resource_id;
+	
+	if(owner_id === undefined)
+		return res.json({ error: 'owner_id is required.' });
+	if(folder_id === undefined)
+		return res.json({ error: 'folder_id is required.' });
+
+	/* Check if owner_id is valid. */
+	if(mongoose.Types.ObjectId.isValid(owner_id)){
+		var id = mongoose.Types.ObjectId(owner_id);
+		Users.find({_id: id}, function(err, user){
+			if(user.length === 0){
+				return res.json({error: "owner_id " + owner_id + " not found."});
+			} else{
+					
+				function find_folder(obj){
+					var res = null;
+					if(obj.guid == folder_id){
+						res = obj;
+					} else {
+						for(var i = 0; i < obj.items.length; i++){
+							if(obj.items[i].type == 'folder'){
+								res = find_folder(obj.items[i]);
+							}
+						}
+					}
+					return res;
+				}
+					
+				var folder = find_folder(user[0].resources);
+				if(folder == null){
+					return res.json({error: "Resource id '" + resource_id + "' is invalid."});
+				}
+				
+				/* Is user the owner of this resource? */
+				if(owner_id != req.client_id){
+					return res.json({error: "User with id " + req.client_id + " does not have access to this resource."});
+				}
+				
+				/* TODO - Check if user is authorized to access resource through sharing. */
+				
+				for(var i = 0; i < folder.items.length; i++){
+					if(folder.items[i].guid == resource_id)
+						folder.items.splice(i, 1);
+				}
+						
+				const finalUser = new Users(user[0]);
+				return finalUser.save().then(()=> res.json(user));
+					
 			}
 		});
 	} else {
