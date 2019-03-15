@@ -37,14 +37,10 @@ fs.readFile('mongouri.txt', 'utf8', function(err, contents){
 mongoose.connect('mongodb://localhost:27017/test', {useNewUrlParser: true});
 
 require('./models/users');
-require('./models/resources');
 
 const Users = mongoose.model('Users');
-const Resources = mongoose.model('Resources');
 
 app.use(cookieParser());
-
-/************************************/
 
 app.get('/',function(req,res) {
 	res.render('landing.html', {name:'max'});
@@ -62,79 +58,14 @@ app.get('/login',function(req,res) {
 app.get('/gateway', verify_token, function(req,res) {
 	
 	if(mongoose.Types.ObjectId.isValid(req.client_id)){
-		res.redirect('/' + req.client_id + '/root');
+		res.redirect('api/users/' + req.client_id + '/resources/root');
 	}
 	
 }); 
 
-/*
-app.get('/resources*', verify_token ,function(req,res) {
-	if(mongoose.Types.ObjectId.isValid(req.user_id)){
-		var id = mongoose.Types.ObjectId(req.user_id);
-		Users.find({_id: id}, function(err, user){
-			if(!user){
-				return res.json({error: "User with id " + req.user_id + " not found."});
-			} else{
-				return res.render('resources.html', {user:user[0]});
-			}
-		});
-	} else {
-		return res.json({error: "user id '" + req.user_id + "' is invalid."});
-	}
-});
-*/
-
 app.get('/logout',function(req,res) {
 	res.render('login.html', {name:'max'});
 });
-
-/* Main navigation for application. */
-app.get('/:owner_id/:resource_id', verify_token, function(req,res) {
-		
-	if(mongoose.Types.ObjectId.isValid(req.params.owner_id)){
-		var id = mongoose.Types.ObjectId(req.params.owner_id);
-		Users.find({_id: id}, function(err, user){
-			if(user.length === 0){ 
-				return res.json({error: "Owner with id " + req.params.owner_id + " doesn't exist."});
-			} else{
-				console.log(user);
-				function find_folder(obj){
-					var res = null;
-					if(obj.guid == req.params.resource_id){
-						res = obj;
-					} else {
-						for(var i = 0; i < obj.items.length; i++){
-							if(obj.items[i].type == 'folder'){
-								res = find_folder(obj.items[i]);
-							}
-						}
-					}
-					return res;
-				}
-				
-				var folder = find_folder(user[0].resources);
-				if(folder == null){
-					return res.json({error: "Resource id '" + req.params.resource_id + "' is invalid."});
-				}
-				
-				if(req.params.owner_id != req.client_id){
-					return res.json({error: "You don't have access to this resource."});
-				}
-				
-				/* TODO - Check if user is authorized to access resource through sharing. */
-				
-				console.log(JSON.stringify(folder));
-				
-				return res.render('resources.html', {client_id: req.client_id, folder: JSON.stringify(folder), owner: user[0]});
-			}
-		});
-	} else {
-		return res.json({error: "user id '" + req.params.user_id + "' is invalid."});
-	}
-	
-});
-
-/************************************/
 
 function verify_token(req, res, next){
 	var token = req.cookies['jwt'];
@@ -308,6 +239,7 @@ app.delete('/api/users/:id', (req, res) => {
 	
 });
 
+/* Get current logged in user. Development purposes only. */
 app.get('/api/users/current', verify_token, (req, res) => {
 	
 	var owner_id = req.body.resource.owner_id;
@@ -328,28 +260,56 @@ app.get('/api/users/current', verify_token, (req, res) => {
 	});
 });
 
-app.get('/api/resources', (req, res) =>{
-	return Resources.find({}).then((resource) =>{
-		if(resource.length === 0){
-			return res.json({error: 'No resources found.' });
-		}
-		return res.json(resource);
-	});
-});
-
-app.get('/api/resources/:id', (req, res) => {
+/* Get folder resource. */
+app.get('/api/users/:owner_id/resources/:resource_id', verify_token, function(req,res) {
 	
-	if(mongoose.Types.ObjectId.isValid(req.params.id)){
-		var id = mongoose.Types.ObjectId(req.params.id);
-		Resources.find({_id: id}, function(err, resource){
-			if(resource.length === 0){
-				return res.json({error: "Resources with id " + req.params.id + " not found."});
+	if(mongoose.Types.ObjectId.isValid(req.params.owner_id)){
+		var id = mongoose.Types.ObjectId(req.params.owner_id);
+		Users.find({_id: id}, function(err, user){
+			if(user.length === 0){ 
+				return res.json({error: "Owner with id " + req.params.owner_id + " doesn't exist."});
 			} else{
-				return res.json(resource);
+				
+				var breadcrumbs = [];
+				
+				function find_folder(obj){
+					var res = null;
+					if(obj.guid == req.params.resource_id){
+						res = obj;
+					} else {
+						for(var i = 0; i < obj.items.length; i++){
+							if(obj.items[i].type == 'folder'){
+								var ret = find_folder(obj.items[i]);
+								if(ret != null) {
+									breadcrumbs.unshift(obj.items[i]);
+									res = ret;
+								}
+							}
+						}
+					}
+					return res;
+				}
+				
+				
+				
+				var folder = find_folder(user[0].resources);
+				if(folder == null){
+					return res.json({error: "Resource with id '" + req.params.resource_id + "' doesn't exist."});
+				}
+				breadcrumbs.unshift(user[0].resources);
+				
+				if(req.params.owner_id != req.client_id){
+					return res.json({error: "You don't have access to this resource."});
+				}
+				
+				/* TODO - Check if user is authorized to access resource through sharing. */
+
+				return res.render('resources.html', {client_id: req.client_id, folder: JSON.stringify(folder), owner: user[0], breadcrumbs: JSON.stringify(breadcrumbs)});
+
 			}
 		});
 	} else {
-		return res.json({error: "id '" + req.params.id + "' is invalid."});
+		return res.json({error: "user id '" + req.params.user_id + "' is invalid."});
 	}
 	
 });
@@ -394,7 +354,8 @@ app.post('/api/users/:user_id/resources', verify_token, (req, res) =>{
 					} else {
 						for(var i = 0; i < obj.items.length; i++){
 							if(obj.items[i].type == 'folder'){
-								res = find_folder(obj.items[i]);
+								var ret = find_folder(obj.items[i]);
+								if(ret != null) res = ret;
 							}
 						}
 					}
@@ -402,8 +363,9 @@ app.post('/api/users/:user_id/resources', verify_token, (req, res) =>{
 				}
 				
 				var folder = find_folder(user[0].resources);
+				console.log
 				if(folder == null){
-					return res.json({error: "Resource id '" + req.params.folder_id + "' is invalid."});
+					return res.json({error: "Resource with id '" + req.params.folder_id + "' doesn't exist."});
 				}
 				
 				/* Is user the owner of this resource? */
@@ -420,7 +382,7 @@ app.post('/api/users/:user_id/resources', verify_token, (req, res) =>{
 				);
 				
 				const finalUser = new Users(user[0]);
-				return finalUser.save().then(()=> res.json(finalUser));
+				return finalUser.save().then(()=> res.json(folder));
 				
 			}
 		});
@@ -434,13 +396,11 @@ app.post('/api/users/:user_id/resources', verify_token, (req, res) =>{
 app.delete('/api/users/:user_id/resources/:resource_id', verify_token, (req, res) =>{
 	
 	var owner_id = req.params.user_id;
-	var folder_id = req.body.folder_id;
+	var target_id = req.body.target_id;
 	var resource_id = req.params.resource_id;
 	
-	if(owner_id === undefined)
-		return res.json({ error: 'owner_id is required.' });
-	if(folder_id === undefined)
-		return res.json({ error: 'folder_id is required.' });
+	if(target_id === undefined)
+		return res.json({ error: 'target_id is required.' });
 
 	/* Check if owner_id is valid. */
 	if(mongoose.Types.ObjectId.isValid(owner_id)){
@@ -452,7 +412,7 @@ app.delete('/api/users/:user_id/resources/:resource_id', verify_token, (req, res
 					
 				function find_folder(obj){
 					var res = null;
-					if(obj.guid == folder_id){
+					if(obj.guid == resource_id){
 						res = obj;
 					} else {
 						for(var i = 0; i < obj.items.length; i++){
@@ -477,12 +437,14 @@ app.delete('/api/users/:user_id/resources/:resource_id', verify_token, (req, res
 				/* TODO - Check if user is authorized to access resource through sharing. */
 				
 				for(var i = 0; i < folder.items.length; i++){
-					if(folder.items[i].guid == resource_id)
+					if(folder.items[i].guid == target_id)
 						folder.items.splice(i, 1);
 				}
-						
+				
+				console.log(folder);
+				
 				const finalUser = new Users(user[0]);
-				return finalUser.save().then(()=> res.json(user));
+				return finalUser.save().then(()=> res.json(folder));
 					
 			}
 		});

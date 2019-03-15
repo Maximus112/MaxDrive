@@ -145,7 +145,6 @@
 		});
 		
 		var client_id = "<%= client_id %>";
-		console.log(client_id);
 		
 		var side_nav_open = true;
 		
@@ -171,6 +170,30 @@
 		  document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
 		}
 		
+		document.addEventListener("DOMContentLoaded", function(event) {
+			
+			resource_table.render(<%- folder %>);
+			
+		});
+		
+		window.addEventListener("resize", function(){
+			if(window.innerWidth < 768) {
+				if(resource_table.platform == "desktop"){
+					resource_table.destroy();
+					resource_table.init("resource-table", ["Name"]);
+					resource_table.platform = "mobile"
+					resource_table.render(function(){}, false, null, null);
+				}
+			} else if( window.innerWidth >= 768) {
+				if(resource_table.platform == "mobile"){
+					resource_table.destroy();
+					resource_table.init("resource-table", ["Name", "Type", "Sharing", "Size"]);
+					resource_table.platform = "desktop"
+					resource_table.render(function(){}, false, null, null);
+				}
+			}
+		});
+		
 		var resource_table = new datatable({
 			"action_btn": true,
 			"relocate": true,
@@ -189,613 +212,367 @@
 		
 		/* The datatable class encapsulates all functions needed to create and manipulate a datatable on the DOM. */
 		function datatable(cfg){
-				
-				/* Could add a config object instead of parameters. */
-				this.config = {
-					"action_btn": cfg.action_btn,
-					"relocate": cfg.relocate,
-					"headers": cfg.headers,
-					"target": cfg.target,
-					"files" : cfg.files,
-					"select_btn" : cfg.select_btn,
-					"breadcrumbs" : cfg.breadcrumbs,
-					"hdr_action_btn": cfg.hdr_action_btn 
-				}
-				
-				console.log(this);
-				
-				/* Holds JSON for the render function to use. */
-				this._data = null;
-				
-				this.selected = [];
-				
-				this.platform = "";
-
-				this.this_breadcrumbs = {};
-				
-				/* Breadcrumbs class. */
-				this.breadcrumbs = function(target, parent){
 			
-					this.items = [];
-					
-					this.generate_from_url = function(){
-						this.items.length = 0;
-						var url_breadcrumbs = window.location.href.split('resources')[1].split('/');
-						this.items.push("resources");
-						for(var i = 1; i < url_breadcrumbs.length; i++){
-							this.items.push(url_breadcrumbs[i]);
-							this.update(null);
-						}
-					}
-					
-					/* Creates a breadcrumb navigation using the items array. */
-					this.update = function(data){
-					
-						var _this = this;
-						/* Empty the breadcrumbs body. */
-						var el = document.getElementById(target + '-breadcrumbs');
-						while(el.firstChild)
-							el.removeChild(el.firstChild);
-						/* Add breadcrumb items to the breadcrumbs. */
-						for(var i = 0; i < this.items.length; i++){
-							/* Build the link. */
-							var href = "";
-							for(var j = 0; j < i + 1; j++){
-								href += "/" + this.items[j];
-							}
-							var breadcrumb = el_factory('li', {class: 'breadcrumb-item', 'data-index': i}, el_factory('a', {href:href}, this.items[i]));
-							/* Attach an event listener if redirection has been disabled. */
-							if(parent.config.relocate == false){
-								breadcrumb.addEventListener('click', function(e){
-									e.preventDefault();
-									if(e.target.nodeName == 'A'){
-										_this.items.length = parseInt(e.target.parentNode.dataset.index) + 1;
-										_this.update(null);
-										if(data != null)
-											parent.render(function(){}, false, null, data);
-										else
-											parent.render(function(){}, false, null, null);
-									}
-								});
-							}
-							document.getElementById(target + '-breadcrumbs').appendChild(breadcrumb);
-						}
-					}
-					
-					/* Constructor */
-					this.init = function(){
-						document.getElementById(target).appendChild(el_factory('nav', {}, el_factory('ol', {class: 'breadcrumb', id: target + '-breadcrumbs'})));
-						//this.items.push("resources");
-						//this.update(null);
-					}
-					this.init();
-				}
-				
-				/* Gets the current folder from breadcrumbs and renders or updates using the callback function. */
-				this.render = function(folder){
-					var _this = this;
-					
-					console.log(folder);
-					
-					/* Reset selected on render. */
-					this.selected.length = 0;
-				
-					/* Remove all elements from the table's body. */
-					_this.empty();
-					this.this_breadcrumbs.items.push(folder.name);
-					_this.this_breadcrumbs.update(_this._data);
-					for(var i = 0; i < folder.items.length; i++){
-						if(folder.items[i].type == 'folder' || (folder.items[i].type == 'file' && _this.config.files == true))
-							_this.add_row([folder.items[i].name, folder.items[i].type, "TBC", "TBC"], i);
-					}
+			/* Could add a config object instead of parameters. */
+			this.config = {
+				"action_btn": cfg.action_btn,
+				"relocate": cfg.relocate,
+				"headers": cfg.headers,
+				"target": cfg.target,
+				"files" : cfg.files,
+				"select_btn" : cfg.select_btn,
+				"breadcrumbs" : cfg.breadcrumbs,
+				"hdr_action_btn": cfg.hdr_action_btn 
+			}
+			
+			console.log(this);
+			
+			/* Holds JSON for the render function to use. */
+			this._data = null;
+			
+			this.selected = [];
+			
+			this.platform = "";
 
-				}
-				
-				/* Need to check for resource type for action menu. */
-				this.add_row = function(columns, index, guid){
-				
-					var _this = this;
-					/* Validation. */
-					if(typeof columns === 'undefined') 
-						return console.log("error: missing elements argument");
-					var dt_row = document.createElement("tr");
-					dt_row.setAttribute("data-index", index);
-					dt_row.setAttribute("data-guid", guid);
-					/* Click event listener. */
-					var resource_type = columns[1];
-					dt_row.addEventListener("click", function (event) {
-						if(resource_type == 'folder'){
-							if(_this.config.relocate && event.target.classList[0] == "clickable"){
-								var href = "";
-								for(var i = 0; i < _this.this_breadcrumbs.items.length; i++){
-										href += '/' + _this.this_breadcrumbs.items[i];
-								}
-								href += '/' + event.target.parentNode.childNodes[1].innerHTML;
-								window.location.href = href;
-							} else if(event.target.classList[0] == "clickable" && _this.config.relocate == false){
-								_this.this_breadcrumbs.items.push(event.target.parentNode.childNodes[1].innerHTML);
-								_this.this_breadcrumbs.update(_this._data);
-								_this.render(function(){}, false, null, _this._data);
-							}
-						}
-					});
-					
-					if(_this.config.select_btn){
-					
-						dt_row.appendChild(this.generate_checkbox(function(event){
-							/* Add absolute path to selected array. */
-							
-								var path = "";
-								for(var i = 0; i < _this.this_breadcrumbs.items.length; i++){
-										path += '/' + _this.this_breadcrumbs.items[i];
-								}
-								path += '/' + event.target.parentNode.parentNode.nextSibling.innerHTML;
-								
-								/* Check for duplicates. */
-								var f_flg = false;
-								for(var i = 0; i < _this.selected.length; i++){
-									if(_this.selected[i] == path){
-										f_flg = true;
-										/* Remove. */
-										_this.selected.splice(i, 1);
-									}
-								}
-								
-								if(!f_flg)
-									_this.selected.push(path);
-									
-								console.log(_this.selected);
-							//_this.this_breadcrumbs.items
-						}))
-					
-					}
-					/* One column on mobile. */
-					if(window.innerWidth < 768 || _this.config.headers.length == 1){
-						columns.length = 1;
-					}
-					for(var i = 0; i < columns.length; i++)
-						dt_row.appendChild(el_factory('td', {class: 'clickable', style:'cursor: pointer;'}, columns[i].toString()));
-					/* Add the action button if enabled. */
-					if(_this.config.action_btn){
-					
-						var menu_items = [];
-						
-						
-						var delete_item = {"delete": function(){
-						
-							//var guid = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
-							console.log(this);
-							/*
-							var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
-							_this.render(function(data){
-						
-								for(var i = 0; i < data.folder.items.length; i++){
-									if(data.folder.items[i].name == name)
-										data.folder.items.splice(i, 1);
-								}
-								return 0;
-							}, true, "\"" + name + "\" deleted.", null);
-							*/
-							
-							
-							
-						}};
-						
-						var rename_item = {"rename": function(){
-							
-							var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
-							console.log(name);	
-							generate_text_modal(columns[1], "Enter the new " + columns[1] + " name", name, "Rename", function(args){
-								
-								_this.render(function(data){
-									/* Check for duplicate folder names. */
-									for(var i = 0; i < data.folder.items.length; i++){
-										if(data.folder.items[i].name == args.INPUT){
-											$.notify("Folder \"" + args.INPUT + "\" already exists.", "error");
-											return -1;
-										}
-									}
-									/* Rename folder. */
-									for(var i = 0; i < data.folder.items.length; i++){
-										if(data.folder.items[i].name == args.ORIGINAL)
-											data.folder.items[i].name = args.INPUT;
-									}
-									return 0;
-								}, true, "Folder \"" + args.ORIGINAL + "\" renamed to \""+ args.INPUT +"\".", null);
-							}, {});
-						
-						}};
-						
-						var move_item = {"move": function(){
-							generate_move_modal(this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML);
-						}};
-						
-						var download_item = {"download": function(){
-							
-							var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
-						
-							/* Get latest user data. */
-							var xhttp = new XMLHttpRequest();
-							xhttp.onreadystatechange = function() {
-								if (this.readyState == 4 && this.status == 200) {
-									
-									/* Parse JSON from response. */
-									user = JSON.parse(this.responseText);
-									
-									/* Find target folder. */
-									var folder = user[0].resources[0];
-									var found_flag = false;
-									for(var i = 1; i < _this.this_breadcrumbs.items.length; i++){
-										found_flag = false;
-										/* Has the target folder been reached? */
-										for(var j = 0; j < folder.items.length; j++){
-											if(folder.items[j].name == _this.this_breadcrumbs.items[i] && folder.items[j].type == 'folder'){
-												folder = folder.items[j];
-												found_flag = true;
-											}
-										}
-									}
-									console.log(folder);
-									/* Get download link. */
-									var download_link = null;
-									for(var i = 0; i < folder.items.length; i++){
-										if(folder.items[i].name == name){
-											download_link = folder.items[i].revisions[folder.items[i].revisions.length -1].download;
-										}
-									}
-									
-									function downloadURI(uri) {
-									  var link = document.createElement("a");
-									  link.href = uri;
-									  document.body.appendChild(link);
-									  link.click();
-									  document.body.removeChild(link);
-									  delete link;
-									}
-									
-									downloadURI(download_link);
-				
-								}
-							};
-							xhttp.open("GET", '/api/users/' + user_id, true);
-							xhttp.send(); 
-	
-						}};
-						
-						/* Open a modal with a table detailing the version history of the file. */
-						var ver_hist_item = { "version history" : function(){
-							
-							var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
-							
-							var xhttp = new XMLHttpRequest();
-							xhttp.onreadystatechange = function() {
-								if (this.readyState == 4 && this.status == 200) {
-									
-									var user = JSON.parse(this.responseText);
-									
-									/* Find target folder. */
-									var folder = user[0].resources[0];
-									for(var i = 1; i < resource_table.this_breadcrumbs.items.length; i++){
-										/* Has the target folder been reached? */
-										for(var j = 0; j < folder.items.length; j++){
-											if(folder.items[j].name == resource_table.this_breadcrumbs.items[i]){
-												folder = folder.items[j];
-											}
-										}
-									}
-									
-									/* Generate Close Button. */
-									var close_btn = el_factory('button', {type: "button", class: "close", "data-dismiss": "modal", "aria-label": "Close"}, el_factory('span', {"aria-hidden": "true"}, "x"));
-									
-									/* Generate Title. */
-									var title = el_factory('label', {for: 'NewDocumentName', class: 'col-form-label', style: 'padding: 10px 0px; color: black; font-weight: normal; font-size: large;'}, "Version History");
-							
-									/* Generate Form. */
-									var form = el_factory('form', {id: 'modal_form'}, close_btn, title);
-									
-									/* Generate Modal. */
-									var modal = el_factory('div', {class: 'modal fade', style: 'top: 30% !important;', id: 'ver_hist_modal', tabindex: '-1', role: 'dialog', 'aria-hidden': 'true'},
-										el_factory('div', {class: 'modal-dialog', style: 'max-width: 350px !important;', role: 'document'},
-											el_factory('div', {class: 'modal-content', style: 'border-radius: 0; box-shadow: 0px 0px 10px 1px grey;'},
-												el_factory('div', {class: 'modal-body', id: 'ver-hist-modal-body'}, form)
-											)
-										)
-									);
-									
-								  $(document.body).append(modal);
-									
-									var revisions = null;
-									
-									/* Find revisions. */
-									for(var i = 0; i < folder.items.length; i++){
-										if(folder.items[i].name == name){
-											revisions = folder.items[i].revisions;
-										}
-									}
-								
-									var ver_hist_table = new datatable({
-										"action_btn": true,
-										"relocate": false,
-										"headers": ["Name", "Size", "Date"],
-										"target": "ver-hist-modal-body",
-										"select_btn": false,
-										"breadcrumbs": false
-									});
-								  
-								  console.log(revisions);
-								 // ver_hist_table.render_revisions(revisions);
-								  
-								  	var revisions = null;
-									
-									/* Find revisions. */
-									for(var i = 0; i < folder.items.length; i++){
-										if(folder.items[i].name == name){
-											revisions = folder.items[i].revisions;
-										}
-									}
-									
-									
-								
-									for(var i = 0; i < revisions.length; i++){
-										ver_hist_table.add_row([revisions[i].name, revisions[i].size, revisions[i].date], i);
-									}
-								  
+			this.this_breadcrumbs = {};
+			
+			/* Breadcrumbs class. */
+			this.breadcrumbs = function(target, parent){
 		
-								  
-									/* Open the text modal. */
-									$('#ver_hist_modal').modal('toggle');
-									 /* Destroy the modal on close. */
-									  $('#ver_hist_modal').on('hidden.bs.modal', function() {
-										var elem = document.querySelector('#ver_hist_modal');
-										elem.parentNode.removeChild(elem);
-									  })
-									
-									
-							   }
-							}
-							xhttp.open("GET", '/api/users/' + user_id, true);
-							xhttp.send(); 
-							
-						}};
-						
-						/* Add a new file revision. */
-						var update = {
-							"update": function(){
-								
-								/* TODO - Ensure revision names are the same. */
-								
-								var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
-							
-								/* Open file dialog. */
-								var file = el_factory('input', {type: 'file'});
-								file.addEventListener('change', function(){
-								
-									/* Upload to AWS. */
-									var file = this.files[0];
-
-									/* Upload to AWS. */
-									if (file) {
-										/* Generate GUID for file name. */
-										uuid = uuidv4();
-										var objKey = user_id + '/' + uuid;
-										var params = {
-											Key: objKey,
-											ContentType: file.type,
-											Body: file,
-											ACL: 'public-read',
-											ContentDisposition: "attachment; filename=" + file.name
-										};
-										
-										s3.upload(params, function(err, res) {
-											if (err) {
-												$.notify(err.message, "error");
-												ret = -1;
-											}
-											resource_table.render(function(data){
-												
-												var ret = 0;
-												
-												console.log(file);
-												
-												var revision = {
-													"uuid": uuid,
-													"name": params.Body.name,
-													"extension": params.Body.type,
-													"size": params.Body.size,
-													"download": res.Location,
-													"modified": params.Body.lastModifiedDate,
-													"date": Date.now(),
-													"preview":"",
-													"comments":"First revision."
-												};
-												
-												/* Check for duplicate fie names before uploading to S3. */
-												for(var i = 0; i < data.folder.items.length; i++){
-													if(data.folder.items[i].name == name){
-														data.folder.items[i].revisions.push(revision);
-													}
-												}
-												
-												return 0;
-												
-											}, true, "Revision added successfully.", null);	
-										});
-									}
-								})
-								file.click();
-							}
-						};
-						
-						var delete_revision = {
-							"delete": function(){
-								var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[0].innerHTML;
-								var _this = this;
-								
-								resource_table.render(function(data){
-									
-									/* TODO - Disable deletion on last revision. */
-
-									var index = _this.parentNode.parentNode.parentNode.parentNode.dataset.index;
-									for(var i = 0; i < data.folder.items.length; i++){
-										if(data.folder.items[i].name == name){
-											
-											data.folder.items[i].revisions.splice(index, 1);
-										}
-									}
-									
-									$('#ver_hist_modal').modal('toggle');
-									
-									return 0;
-									
-								}, true, "Revision deleted successfully.", null);	
-								
-						}};
-						
-						var download_revision = {
-							"download": function(){
-								
-								
-								
-								var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[0].innerHTML;
-								var _this = this;
-								var index = _this.parentNode.parentNode.parentNode.parentNode.dataset.index;
-								
-								resource_table.render(function(data){
-									
-									
-									/* Get download link. */
-									var download_link = null;
-									for(var i = 0; i < data.folder.items.length; i++){
-										if(data.folder.items[i].name == name){
-											download_link = data.folder.items[i].revisions[index].download;
-										}
-									}
-									
-									
-									
-									console.log(download_link);
-									
-									function downloadURI(uri) {
-									  var link = document.createElement("a");
-									  link.href = uri;
-									  document.body.appendChild(link);
-									  link.click();
-									  document.body.removeChild(link);
-									  delete link;
-									}
-									
-									downloadURI(download_link);
-									
-									return 0;
-								
-								}, false, null, null);
-							}
-						};
-						
-						
-						var view_revision = {
-							"view": function(){
-								
-							}
-						};
-						
-						if(resource_type == 'file'){
-							menu_items.push(download_item);
-							menu_items.push(ver_hist_item);
-							menu_items.push(update);
-						}
-						
-						if(resource_type == 'file' || resource_type == 'folder'){
-						
-							menu_items.push(delete_item);
-							menu_items.push(rename_item);
-							menu_items.push(move_item);
-						
-						}
-						
-						/* It must be a revision. */
-						if(resource_type != 'file' && resource_type != 'folder'){
-						
-							menu_items.push(view_revision);
-							menu_items.push(download_revision);
-							menu_items.push(delete_revision);
-						
-						}
-						
-						dt_row.appendChild(this.generate_action_btn(null, menu_items));
-					}
-					document.getElementById(_this.config.target + '-body').appendChild(dt_row);
-				}
+				this.items = [];
 				
-				this.action_btn = function(id){
-					this.add_item = function(name, callback){
-						var item = el_factory('button', {class:'dropdown-item', type:'button', onclick:callback}, name);
-						return item;
-					}
-				}
+				/* Creates a breadcrumb navigation using the items array. */
+				this.update = function(data){
 				
-				this.generate_action_btn = function(id, items){
-					var attr = (id != null) ? { class:'more-btn', id: id, 'data-toggle':"dropdown" } : { class:'more-btn', 'data-toggle':"dropdown" };
-					var btn = el_factory('div', attr,
-							el_factory('span', {class: 'dot'}),
-							el_factory('span', {class: 'dot'}),
-							el_factory('span', {class: 'dot'}))
-					var inner_div = el_factory('div', {class: 'dropdown-menu dropdown-menu-right'});
-					for(var i = 0; i < items.length; i++){
-						for(prop in items[i]){
-							var item = el_factory('button', {class:'dropdown-item', type:'button'}, prop);
-							item.addEventListener('click', items[i][prop], false);
-							inner_div.appendChild(item);
-						}
-					}
-					var th = el_factory('th', {style:'width:10%;'}, el_factory('div', {class:'dropdown'}, btn, inner_div));
-					
-					return th;
-				}
-				
-				/* Removes all nodes from the table's body. */
-				this.empty = function(){
 					var _this = this;
-					var myNode = document.getElementById(_this.config.target + '-body');
-					while (myNode.firstChild) {
-						myNode.removeChild(myNode.firstChild);
+					/* Empty the breadcrumbs body. */
+					var el = document.getElementById(target + '-breadcrumbs');
+					while(el.firstChild)
+						el.removeChild(el.firstChild);
+					/* Add breadcrumb items to the breadcrumbs. */
+					for(var i = 0; i < _this.items.length; i++){
+						var href = "/api/users/" + "<%- owner._id %>" + "/resources/" + _this.items[i].guid
+						var breadcrumb = el_factory('li', {class: 'breadcrumb-item', 'data-index': i}, el_factory('a', {href:href}, this.items[i].name));
+						document.getElementById(target + '-breadcrumbs').appendChild(breadcrumb);
 					}
-				}
-				
-				this.destroy = function(){
-					var _this = this;
-					var element = document.getElementById(_this.config.target);
-					while (element.firstChild) {
-						element.removeChild(element.firstChild);
-					}
-				}
-				
-				this.generate_checkbox = function(click_event){
-					var checkbox = el_factory('input', {type: 'checkbox'});
-					checkbox.addEventListener('click', click_event);
-					return el_factory('td', {style: "width: 10px;"}, el_factory('label', {class: "container"}, checkbox, el_factory('span', {class: "checkmark"})));
 				}
 				
 				/* Constructor */
-				this.init = function(target, headers){
-					var _this = this;
-					if(target === 'undefined')
-						return console.log("error: table target required");
-					_this.config.target = target;
-					var dt_row = document.createElement("tr");
-					if(_this.config.select_btn) 
-						dt_row.appendChild(el_factory('th'));
-					/* One column on mobile. */
-					if(window.innerWidth < 768){
-						headers.length = 1;
+				this.init = function(){
+					document.getElementById(target).appendChild(el_factory('nav', {}, el_factory('ol', {class: 'breadcrumb', id: target + '-breadcrumbs'})));
+				}
+				this.init();
+			}
+			
+			/* Gets the current folder from breadcrumbs and renders or updates using the callback function. */
+			this.render = function(folder){
+				var _this = this;
+				
+				console.log(folder);
+				
+				/* Reset selected on render. */
+				this.selected.length = 0;
+			
+				/* Remove all elements from the table's body. */
+				_this.empty();
+				_this.this_breadcrumbs.items.length = 0;
+				var x = <%- breadcrumbs %>;
+				console.log(x);
+				this.this_breadcrumbs.items = <%- breadcrumbs %>;
+				_this.this_breadcrumbs.update(_this._data);
+				for(var i = 0; i < folder.items.length; i++){
+					if(folder.items[i].type == 'folder' || (folder.items[i].type == 'file' && _this.config.files == true))
+						_this.add_row([folder.items[i].name, folder.items[i].type, "TBC", "TBC"], i, folder.items[i].guid);
+				}
+			}
+			
+			/* Get the latest datatable JSON and render. */
+			this.update = function(){
+				var _this = this;			
+				var xhttp = new XMLHttpRequest();
+				xhttp.onreadystatechange = function(){
+					if(this.readyState == 4 && this.status == 200){
+						_this.render(JSON.parse(this.responseText));
 					}
-					for(var i = 0; i < headers.length; i++)
-						dt_row.appendChild(el_factory('th', {}, headers[i]));
+				}
+				var folder = <%- folder %>;
+				console.log();
+				var url = "/api/users/" + "<%- owner._id %>" + "/" + this.this_breadcrumbs.items[this.this_breadcrumbs.items.length -1].guid + '/false';
+				console.log(url);
+				xhttp.open("GET", url);
+				xhttp.send();
+			}
+			
+			/* Need to check for resource type for action menu. */
+			this.add_row = function(columns, index, guid){
+			
+				var _this = this;
+				/* Validation. */
+				if(typeof columns === 'undefined') 
+					return console.log("error: missing elements argument");
+				var dt_row = document.createElement("tr");
+				dt_row.setAttribute("data-index", index);
+				dt_row.setAttribute("data-guid", guid);
+				/* Click event listener. */
+				var resource_type = columns[1];
+				dt_row.addEventListener("click", function (event) {
+					event.preventDefault();
+					
+					if(resource_type == 'folder'){
+						if(event.target.classList[0] == "clickable"){
 						
-					if(_this.config.hdr_action_btn){
-						dt_row.appendChild(this.generate_action_btn("action-btn", [
-						{"Upload file": function(){
+							var href = "/api/users/" + "<%- owner._id %>" + "/resources/" + this.dataset.guid;
+							console.log(href);
+							window.location.href = href;
+				
+						}
+					}
+					
+				});
+				
+				if(_this.config.select_btn){
+				
+					dt_row.appendChild(this.generate_checkbox(function(event){
+						/* Add absolute path to selected array. */
+						
+							var path = "";
+							for(var i = 0; i < _this.this_breadcrumbs.items.length; i++){
+									path += '/' + _this.this_breadcrumbs.items[i];
+							}
+							path += '/' + event.target.parentNode.parentNode.nextSibling.innerHTML;
 							
+							/* Check for duplicates. */
+							var f_flg = false;
+							for(var i = 0; i < _this.selected.length; i++){
+								if(_this.selected[i] == path){
+									f_flg = true;
+									/* Remove. */
+									_this.selected.splice(i, 1);
+								}
+							}
+							
+							if(!f_flg)
+								_this.selected.push(path);
+								
+							console.log(_this.selected);
+						//_this.this_breadcrumbs.items
+					}))
+				
+				}
+				/* One column on mobile. */
+				if(window.innerWidth < 768 || _this.config.headers.length == 1){
+					columns.length = 1;
+				}
+				for(var i = 0; i < columns.length; i++)
+					dt_row.appendChild(el_factory('td', {class: 'clickable', style:'cursor: pointer;'}, columns[i].toString()));
+				/* Add the action button if enabled. */
+				if(_this.config.action_btn){
+				
+					var menu_items = [];
+					
+					var delete_item = {"delete": function(){
+						
+						var resource_id = this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
+						
+						var xhttp = new XMLHttpRequest();
+						xhttp.onreadystatechange = function(){
+							if(this.status == 200 && this.readyState == 4){
+								$.notify("Resource deleted", "success");
+								resource_table.render(JSON.parse(this.responseText));
+							}
+						}
+						var folder = <%- folder %>;
+						xhttp.open("DELETE", "/api/users/" + "<%- owner._id %>" + "/resources/" + folder.guid);
+						xhttp.setRequestHeader("Content-Type", "application/json");
+						xhttp.send(JSON.stringify({target_id: resource_id}));
+
+					}};
+					
+					var rename_item = {"rename": function(){
+						
+						var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
+						console.log(name);	
+						generate_text_modal(columns[1], "Enter the new " + columns[1] + " name", name, "Rename", function(args){
+							
+							_this.render(function(data){
+								/* Check for duplicate folder names. */
+								for(var i = 0; i < data.folder.items.length; i++){
+									if(data.folder.items[i].name == args.INPUT){
+										$.notify("Folder \"" + args.INPUT + "\" already exists.", "error");
+										return -1;
+									}
+								}
+								/* Rename folder. */
+								for(var i = 0; i < data.folder.items.length; i++){
+									if(data.folder.items[i].name == args.ORIGINAL)
+										data.folder.items[i].name = args.INPUT;
+								}
+								return 0;
+							}, true, "Folder \"" + args.ORIGINAL + "\" renamed to \""+ args.INPUT +"\".", null);
+						}, {});
+					
+					}};
+					
+					var move_item = {"move": function(){
+						generate_move_modal(this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML);
+					}};
+					
+					var download_item = {"download": function(){
+						
+						var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
+					
+						/* Get latest user data. */
+						var xhttp = new XMLHttpRequest();
+						xhttp.onreadystatechange = function() {
+							if (this.readyState == 4 && this.status == 200) {
+								
+								/* Parse JSON from response. */
+								user = JSON.parse(this.responseText);
+								
+								/* Find target folder. */
+								var folder = user[0].resources[0];
+								var found_flag = false;
+								for(var i = 1; i < _this.this_breadcrumbs.items.length; i++){
+									found_flag = false;
+									/* Has the target folder been reached? */
+									for(var j = 0; j < folder.items.length; j++){
+										if(folder.items[j].name == _this.this_breadcrumbs.items[i] && folder.items[j].type == 'folder'){
+											folder = folder.items[j];
+											found_flag = true;
+										}
+									}
+								}
+								console.log(folder);
+								/* Get download link. */
+								var download_link = null;
+								for(var i = 0; i < folder.items.length; i++){
+									if(folder.items[i].name == name){
+										download_link = folder.items[i].revisions[folder.items[i].revisions.length -1].download;
+									}
+								}
+								
+								function downloadURI(uri) {
+								  var link = document.createElement("a");
+								  link.href = uri;
+								  document.body.appendChild(link);
+								  link.click();
+								  document.body.removeChild(link);
+								  delete link;
+								}
+								
+								downloadURI(download_link);
+			
+							}
+						};
+						xhttp.open("GET", '/api/users/' + user_id, true);
+						xhttp.send(); 
+
+					}};
+					
+					/* Open a modal with a table detailing the version history of the file. */
+					var ver_hist_item = { "version history" : function(){
+						
+						var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
+						
+						var xhttp = new XMLHttpRequest();
+						xhttp.onreadystatechange = function() {
+							if (this.readyState == 4 && this.status == 200) {
+								
+								var user = JSON.parse(this.responseText);
+								
+								/* Find target folder. */
+								var folder = user[0].resources[0];
+								for(var i = 1; i < resource_table.this_breadcrumbs.items.length; i++){
+									/* Has the target folder been reached? */
+									for(var j = 0; j < folder.items.length; j++){
+										if(folder.items[j].name == resource_table.this_breadcrumbs.items[i]){
+											folder = folder.items[j];
+										}
+									}
+								}
+								
+								/* Generate Close Button. */
+								var close_btn = el_factory('button', {type: "button", class: "close", "data-dismiss": "modal", "aria-label": "Close"}, el_factory('span', {"aria-hidden": "true"}, "x"));
+								
+								/* Generate Title. */
+								var title = el_factory('label', {for: 'NewDocumentName', class: 'col-form-label', style: 'padding: 10px 0px; color: black; font-weight: normal; font-size: large;'}, "Version History");
+						
+								/* Generate Form. */
+								var form = el_factory('form', {id: 'modal_form'}, close_btn, title);
+								
+								/* Generate Modal. */
+								var modal = el_factory('div', {class: 'modal fade', style: 'top: 30% !important;', id: 'ver_hist_modal', tabindex: '-1', role: 'dialog', 'aria-hidden': 'true'},
+									el_factory('div', {class: 'modal-dialog', style: 'max-width: 350px !important;', role: 'document'},
+										el_factory('div', {class: 'modal-content', style: 'border-radius: 0; box-shadow: 0px 0px 10px 1px grey;'},
+											el_factory('div', {class: 'modal-body', id: 'ver-hist-modal-body'}, form)
+										)
+									)
+								);
+								
+							  $(document.body).append(modal);
+								
+								var revisions = null;
+								
+								/* Find revisions. */
+								for(var i = 0; i < folder.items.length; i++){
+									if(folder.items[i].name == name){
+										revisions = folder.items[i].revisions;
+									}
+								}
+							
+								var ver_hist_table = new datatable({
+									"action_btn": true,
+									"relocate": false,
+									"headers": ["Name", "Size", "Date"],
+									"target": "ver-hist-modal-body",
+									"select_btn": false,
+									"breadcrumbs": false
+								});
+							  
+							  console.log(revisions);
+							 // ver_hist_table.render_revisions(revisions);
+							  
+								var revisions = null;
+								
+								/* Find revisions. */
+								for(var i = 0; i < folder.items.length; i++){
+									if(folder.items[i].name == name){
+										revisions = folder.items[i].revisions;
+									}
+								}
+								
+								
+							
+								for(var i = 0; i < revisions.length; i++){
+									ver_hist_table.add_row([revisions[i].name, revisions[i].size, revisions[i].date], i);
+								}
+							  
+	
+							  
+								/* Open the text modal. */
+								$('#ver_hist_modal').modal('toggle');
+								 /* Destroy the modal on close. */
+								  $('#ver_hist_modal').on('hidden.bs.modal', function() {
+									var elem = document.querySelector('#ver_hist_modal');
+									elem.parentNode.removeChild(elem);
+								  })
+								
+								
+						   }
+						}
+						xhttp.open("GET", '/api/users/' + user_id, true);
+						xhttp.send(); 
+						
+					}};
+					
+					/* Add a new file revision. */
+					var update = {
+						"update": function(){
+							
+							/* TODO - Ensure revision names are the same. */
+							
+							var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
+						
 							/* Open file dialog. */
 							var file = el_factory('input', {type: 'file'});
 							file.addEventListener('change', function(){
@@ -827,161 +604,307 @@
 											
 											console.log(file);
 											
-											/* Check for duplicate fie names before uploading to S3. */
-											for(var i = 0; i < data.folder.items.length; i++){
-												if(data.folder.items[i].name == file.name){
-													$.notify("File with name \"" + file.name + "\" already exists.", "error");
-													return -1;
-												}
-											}
-													
-											/* Build Payload. */
-											var payload = {
-												"type": 'file',
-												"resource_id": uuidv4(),
+											var revision = {
+												"uuid": uuid,
 												"name": params.Body.name,
+												"extension": params.Body.type,
 												"size": params.Body.size,
-												"revisions":[
-													{
-														"uuid": uuid,
-														"name": params.Body.name,
-														"extension": params.Body.type,
-														"size": params.Body.size,
-														"download": res.Location,
-														"modified": params.Body.lastModifiedDate,
-														"date": Date.now(),
-														"preview":"",
-														"comments":"First revision."
-													}
-												]
+												"download": res.Location,
+												"modified": params.Body.lastModifiedDate,
+												"date": Date.now(),
+												"preview":"",
+												"comments":"First revision."
 											};
 											
-											data.folder.items.push(payload);
+											/* Check for duplicate fie names before uploading to S3. */
+											for(var i = 0; i < data.folder.items.length; i++){
+												if(data.folder.items[i].name == name){
+													data.folder.items[i].revisions.push(revision);
+												}
+											}
 											
 											return 0;
 											
-										}, true, "File \"" + params.Body.name + "\" uploaded successfully.", null);	
+										}, true, "Revision added successfully.", null);	
 									});
 								}
 							})
 							file.click();
-						}},
-						{"New Folder": function(){ 
+						}
+					};
+					
+					var delete_revision = {
+						"delete": function(){
+							var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[0].innerHTML;
 							var _this = this;
-							generate_text_modal('Folder', 'Enter your folder name', false, 'Create', 
-								function(args){
-									
-									var xhttp = new XMLHttpRequest();
-									xhttp.onreadystatechange = function() {
-										if (this.readyState == 4 && this.status == 200) {
-											
-											console.log(this.responseText);
-											//window.location.href = '/' + "<%= owner._id %>" + '/' + <%- folder %>.guid;
-											/* Redirecting looks shit because there's no feedback. */
-											
-											/* Just update the table instead. */
-											//_this.empty();
-										}
-									}
-									
-									xhttp.open("POST", '/api/users/' +  "<%= client_id %>" +'/resources', true);
-									xhttp.setRequestHeader('Content-Type', 'application/json');
-									var folder = <%- folder %>;
-									xhttp.send(JSON.stringify({owner_id: "<%= owner._id %>", folder_id: folder.guid, type: "folder", name: args.INPUT})); 
+							
+							resource_table.render(function(data){
 								
-								},{});
-						}}
-							]));
-						
-					}
-					
-					var dt = el_factory('table', {class: 'table'}, 
-								el_factory('thead', {}, dt_row), el_factory('tbody', {id: _this.config.target + '-body'})
-							);
-					if(_this.config.breadcrumbs)
-						_this.this_breadcrumbs = new this.breadcrumbs(target, this);
-					document.getElementById(target).appendChild(dt);
-				}
-				
-				this.init(this.config.target, this.config.headers);
-			}
-		
-		document.addEventListener("DOMContentLoaded", function(event) {
-			
-			resource_table.render(<%- folder %>);
-			
-		});
-		
-		window.addEventListener("resize", function(){
-			if(window.innerWidth < 768) {
-				closeNav();
-				if(resource_table.platform == "desktop"){
-					resource_table.destroy();
-					resource_table.init("resource-table", ["Name"]);
-					resource_table.platform = "mobile"
-					resource_table.render(function(){}, false, null, null);
-				}
-			} else if( window.innerWidth >= 768) {
-				openNav();
-				if(resource_table.platform == "mobile"){
-					resource_table.destroy();
-					resource_table.init("resource-table", ["Name", "Type", "Sharing", "Size"]);
-					resource_table.platform = "desktop"
-					resource_table.render(function(){}, false, null, null);
-				}
-			}
-		});
-		
-		window.addEventListener("click", function(event){
-			if(event.target.id !== 'side_menu' && event.target.id !== 'open_menu'){
-				if(window.innerWidth < 768) {
-					closeNav();
-				}
-			}
-		});
-		
-		/* Generates a uuid. */
-		function uuidv4() {
-		  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
-			(c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-		  )
-		}
-		
-		/* Set the width of the sidebar to 250px and the left margin of the page content to 250px */
-		function openNav() {
-			side_nav_open=true;
-			document.getElementById("side_menu").style.width = "250px";
-			/* Don't shift main to right on small screen. */
-			if(window.innerWidth >= 768) {
-				document.getElementById("main").style.marginLeft = "250px";
-			}
-		}
+								/* TODO - Disable deletion on last revision. */
 
-		/* Set the width of the sidebar to 0 and the left margin of the page content to 0 */
-		function closeNav() {
-			side_nav_open=false;
-			document.getElementById("side_menu").style.width = "0";
-			document.getElementById("main").style.marginLeft = "0";
-		}
-		
-		function create_folder(args){
+								var index = _this.parentNode.parentNode.parentNode.parentNode.dataset.index;
+								for(var i = 0; i < data.folder.items.length; i++){
+									if(data.folder.items[i].name == name){
+										
+										data.folder.items[i].revisions.splice(index, 1);
+									}
+								}
+								
+								$('#ver_hist_modal').modal('toggle');
+								
+								return 0;
+								
+							}, true, "Revision deleted successfully.", null);	
+							
+					}};
+					
+					var download_revision = {
+						"download": function(){
+							
+							
+							
+							var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[0].innerHTML;
+							var _this = this;
+							var index = _this.parentNode.parentNode.parentNode.parentNode.dataset.index;
+							
+							resource_table.render(function(data){
+								
+								
+								/* Get download link. */
+								var download_link = null;
+								for(var i = 0; i < data.folder.items.length; i++){
+									if(data.folder.items[i].name == name){
+										download_link = data.folder.items[i].revisions[index].download;
+									}
+								}
+								
+								
+								
+								console.log(download_link);
+								
+								function downloadURI(uri) {
+								  var link = document.createElement("a");
+								  link.href = uri;
+								  document.body.appendChild(link);
+								  link.click();
+								  document.body.removeChild(link);
+								  delete link;
+								}
+								
+								downloadURI(download_link);
+								
+								return 0;
+							
+							}, false, null, null);
+						}
+					};
+					
+					
+					var view_revision = {
+						"view": function(){
+							
+						}
+					};
+					
+					if(resource_type == 'file'){
+						menu_items.push(download_item);
+						menu_items.push(ver_hist_item);
+						menu_items.push(update);
+					}
+					
+					if(resource_type == 'file' || resource_type == 'folder'){
+					
+						menu_items.push(delete_item);
+						menu_items.push(rename_item);
+						menu_items.push(move_item);
+					
+					}
+					
+					/* It must be a revision. */
+					if(resource_type != 'file' && resource_type != 'folder'){
+					
+						menu_items.push(view_revision);
+						menu_items.push(download_revision);
+						menu_items.push(delete_revision);
+					
+					}
+					
+					dt_row.appendChild(this.generate_action_btn(null, menu_items));
+				}
+				document.getElementById(_this.config.target + '-body').appendChild(dt_row);
+			}
 			
-			resource_table.render(function(data){
+			this.action_btn = function(id){
+				this.add_item = function(name, callback){
+					var item = el_factory('button', {class:'dropdown-item', type:'button', onclick:callback}, name);
+					return item;
+				}
+			}
 			
-				/* Check for duplicate folder names. */
-				for(var i = 0; i < data.folder.items.length; i++){
-					if(data.folder.items[i].name == args.INPUT){
-						$.notify("Folder \"" + args.INPUT + "\" already exists.", "error");
-						return -1;
+			this.generate_action_btn = function(id, items){
+				var attr = (id != null) ? { class:'more-btn', id: id, 'data-toggle':"dropdown" } : { class:'more-btn', 'data-toggle':"dropdown" };
+				var btn = el_factory('div', attr,
+						el_factory('span', {class: 'dot'}),
+						el_factory('span', {class: 'dot'}),
+						el_factory('span', {class: 'dot'}))
+				var inner_div = el_factory('div', {class: 'dropdown-menu dropdown-menu-right'});
+				for(var i = 0; i < items.length; i++){
+					for(prop in items[i]){
+						var item = el_factory('button', {class:'dropdown-item', type:'button'}, prop);
+						item.addEventListener('click', items[i][prop], false);
+						inner_div.appendChild(item);
 					}
 				}
+				var th = el_factory('th', {style:'width:10%;'}, el_factory('div', {class:'dropdown'}, btn, inner_div));
 				
-				data.folder.items.push({"name": args.INPUT, "size": "0MB", "type": "folder", items: [], "resource_id": uuidv4()});
-				
-				return 0;
-					
-			}, true, "Folder \"" + args.INPUT + "\" added.", null);
+				return th;
+			}
 			
+			/* Removes all nodes from the table's body. */
+			this.empty = function(){
+				var _this = this;
+				var myNode = document.getElementById(_this.config.target + '-body');
+				while (myNode.firstChild) {
+					myNode.removeChild(myNode.firstChild);
+				}
+			}
+			
+			this.destroy = function(){
+				var _this = this;
+				var element = document.getElementById(_this.config.target);
+				while (element.firstChild) {
+					element.removeChild(element.firstChild);
+				}
+			}
+			
+			this.generate_checkbox = function(click_event){
+				var checkbox = el_factory('input', {type: 'checkbox'});
+				checkbox.addEventListener('click', click_event);
+				return el_factory('td', {style: "width: 10px;"}, el_factory('label', {class: "container"}, checkbox, el_factory('span', {class: "checkmark"})));
+			}
+			
+			/* Constructor */
+			this.init = function(target, headers){
+				var _this = this;
+				if(target === 'undefined')
+					return console.log("error: table target required");
+				_this.config.target = target;
+				var dt_row = document.createElement("tr");
+				if(_this.config.select_btn) 
+					dt_row.appendChild(el_factory('th'));
+				/* One column on mobile. */
+				if(window.innerWidth < 768){
+					headers.length = 1;
+				}
+				for(var i = 0; i < headers.length; i++)
+					dt_row.appendChild(el_factory('th', {}, headers[i]));
+					
+				if(_this.config.hdr_action_btn){
+					dt_row.appendChild(this.generate_action_btn("action-btn", [
+					{"Upload file": function(){
+						
+						/* Open file dialog. */
+						var file = el_factory('input', {type: 'file'});
+						file.addEventListener('change', function(){
+						
+							/* Upload to AWS. */
+							var file = this.files[0];
+
+							/* Upload to AWS. */
+							if (file) {
+								/* Generate GUID for file name. */
+								uuid = uuidv4();
+								var objKey = user_id + '/' + uuid;
+								var params = {
+									Key: objKey,
+									ContentType: file.type,
+									Body: file,
+									ACL: 'public-read',
+									ContentDisposition: "attachment; filename=" + file.name
+								};
+								
+								s3.upload(params, function(err, res) {
+									if (err) {
+										$.notify(err.message, "error");
+										ret = -1;
+									}
+									resource_table.render(function(data){
+										
+										var ret = 0;
+										
+										console.log(file);
+										
+										/* Check for duplicate fie names before uploading to S3. */
+										for(var i = 0; i < data.folder.items.length; i++){
+											if(data.folder.items[i].name == file.name){
+												$.notify("File with name \"" + file.name + "\" already exists.", "error");
+												return -1;
+											}
+										}
+												
+										/* Build Payload. */
+										var payload = {
+											"type": 'file',
+											"resource_id": uuidv4(),
+											"name": params.Body.name,
+											"size": params.Body.size,
+											"revisions":[
+												{
+													"uuid": uuid,
+													"name": params.Body.name,
+													"extension": params.Body.type,
+													"size": params.Body.size,
+													"download": res.Location,
+													"modified": params.Body.lastModifiedDate,
+													"date": Date.now(),
+													"preview":"",
+													"comments":"First revision."
+												}
+											]
+										};
+										
+										data.folder.items.push(payload);
+										
+										return 0;
+										
+									}, true, "File \"" + params.Body.name + "\" uploaded successfully.", null);	
+								});
+							}
+						})
+						file.click();
+					}},
+					{"New Folder": function(){ 
+						var _this = this;
+						generate_text_modal('Folder', 'Enter your folder name', false, 'Create', 
+							function(args){
+								
+								var xhttp = new XMLHttpRequest();
+								xhttp.onreadystatechange = function() {
+									if (this.readyState == 4 && this.status == 200) {
+										$.notify(args.INPUT + " created.", "success");
+										resource_table.render(JSON.parse(this.responseText));
+									}
+								}
+								xhttp.open("POST", '/api/users/' +  "<%= owner._id %>" +'/resources', true);
+								xhttp.setRequestHeader('Content-Type', 'application/json');
+								var folder = <%- folder %>;
+								xhttp.send(JSON.stringify({owner_id: "<%= owner._id %>", folder_id: folder.guid, type: "folder", name: args.INPUT})); 
+							
+							},{});
+					}}
+						]));
+						
+				}
+				
+				var dt = el_factory('table', {class: 'table'}, 
+							el_factory('thead', {}, dt_row), el_factory('tbody', {id: _this.config.target + '-body'})
+						);
+				if(_this.config.breadcrumbs)
+					_this.this_breadcrumbs = new this.breadcrumbs(target, this);
+				document.getElementById(target).appendChild(dt);
+			}
+			
+			this.init(this.config.target, this.config.headers);
 		}
 		
 		
