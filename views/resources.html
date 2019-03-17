@@ -9,6 +9,9 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css" integrity="sha384-GJzZqFGwb1QTTN6wy59ffF1BuGJpLSa9DkKMp0DgiMDm4iYMj70gZWKYbI706tWS" crossorigin="anonymous">
 	<link rel="shortcut icon" href="/img/logo-icon.png"/>
 	<link rel="stylesheet" type="text/css" href="css/checkbox.css">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.2.1/themes/default/style.min.css" />
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jstree-bootstrap-theme@1.0.1/dist/themes/proton/style.min.css">
+	
     <title>MaxDrive</title>
 	<style>
 		html, body {
@@ -86,7 +89,6 @@
 
 		<nav class="navbar navbar-expand-md navbar-light bg-light">
 		  
-		  <button id="open_menu" class="btn btn-outline-success" type="button">Side Menu</button>
 		  
 		<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
 			<span class="navbar-toggler-icon"></span>
@@ -132,6 +134,8 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/js/bootstrap.min.js" integrity="sha384-B0UglyR+jN6CkvvICOB2joaf5I4l3gm9GU6Hc1og6Ls7i6U/mkkaduKaBhlAXv9k" crossorigin="anonymous"></script>
 	<script src="/js/notify.min.js"></script>
 	<script src="https://sdk.amazonaws.com/js/aws-sdk-2.283.1.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.2.1/jstree.min.js"></script>
+	
 	<script>
 		
 		AWS.config.region = 'eu-west-2'; // Region
@@ -171,7 +175,7 @@
 		}
 		
 		document.addEventListener("DOMContentLoaded", function(event) {
-			
+			//resource_table.this_breadcrumbs.items = <%- breadcrumbs %>;
 			resource_table.render(<%- folder %>);
 			
 		});
@@ -205,11 +209,6 @@
 			"hdr_action_btn" : true
 		});
 		
-		document.getElementById('open_menu').addEventListener('click', function(){
-			console.log(9);
-			openNav();
-		});
-		
 		/* The datatable class encapsulates all functions needed to create and manipulate a datatable on the DOM. */
 		function datatable(cfg){
 			
@@ -224,8 +223,6 @@
 				"breadcrumbs" : cfg.breadcrumbs,
 				"hdr_action_btn": cfg.hdr_action_btn 
 			}
-			
-			console.log(this);
 			
 			/* Holds JSON for the render function to use. */
 			this._data = null;
@@ -266,9 +263,8 @@
 			
 			/* Gets the current folder from breadcrumbs and renders or updates using the callback function. */
 			this.render = function(folder){
-				var _this = this;
 				
-				console.log(folder);
+				var _this = this;
 				
 				/* Reset selected on render. */
 				this.selected.length = 0;
@@ -276,9 +272,7 @@
 				/* Remove all elements from the table's body. */
 				_this.empty();
 				_this.this_breadcrumbs.items.length = 0;
-				var x = <%- breadcrumbs %>;
-				console.log(x);
-				this.this_breadcrumbs.items = <%- breadcrumbs %>;
+				_this.this_breadcrumbs.items = <%- breadcrumbs %>;
 				_this.this_breadcrumbs.update(_this._data);
 				for(var i = 0; i < folder.items.length; i++){
 					if(folder.items[i].type == 'folder' || (folder.items[i].type == 'file' && _this.config.files == true))
@@ -390,31 +384,43 @@
 					
 					var rename_item = {"rename": function(){
 						
+						var _this = this;
+						
 						var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
-						console.log(name);	
+
 						generate_text_modal(columns[1], "Enter the new " + columns[1] + " name", name, "Rename", function(args){
+
+							var resource_id = _this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
+
+							var xhttp = new XMLHttpRequest();
+							xhttp.onreadystatechange = function(){
+								if(this.status == 200 && this.readyState == 4){
+									$.notify("Resource renamed.", "success");
+									resource_table.render(JSON.parse(this.responseText));
+								}
+							}
+							var folder = <%- folder %>;
 							
-							_this.render(function(data){
-								/* Check for duplicate folder names. */
-								for(var i = 0; i < data.folder.items.length; i++){
-									if(data.folder.items[i].name == args.INPUT){
-										$.notify("Folder \"" + args.INPUT + "\" already exists.", "error");
-										return -1;
-									}
+							var target = null;
+							for(var i = 0; i < folder.items.length; i++){
+								if(folder.items[i].guid == resource_id){
+									target = folder.items[i];
 								}
-								/* Rename folder. */
-								for(var i = 0; i < data.folder.items.length; i++){
-									if(data.folder.items[i].name == args.ORIGINAL)
-										data.folder.items[i].name = args.INPUT;
-								}
-								return 0;
-							}, true, "Folder \"" + args.ORIGINAL + "\" renamed to \""+ args.INPUT +"\".", null);
+							}
+							
+							target.name = args.INPUT;
+							
+							xhttp.open("PUT", "/api/users/" + "<%- owner._id %>" + "/resources/" + folder.guid);
+							xhttp.setRequestHeader("Content-Type", "application/json");
+							xhttp.send(JSON.stringify({target: target}));
+							
 						}, {});
 					
 					}};
 					
 					var move_item = {"move": function(){
-						generate_move_modal(this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML);
+						var resource_id = this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
+						generate_move_modal(resource_id);
 					}};
 					
 					var download_item = {"download": function(){
@@ -963,35 +969,19 @@
 		  })
 		}
 		
-		function generate_move_modal(resource_name){
+		function generate_move_modal(resource_guid){
+
+			var folder = <%- folder %>;
+
+			var original = {};
+					
+			/* Save original resource and delete it from old location.*/
+			for(var i = 0; i < folder.items.length; i++){
+				if(folder.items[i].guid == resource_guid){
+					original = folder.items[i]
+				}
+			}
 			
-			var xhttp = new XMLHttpRequest();
-			xhttp.onreadystatechange = function() {
-				if (this.readyState == 4 && this.status == 200) {
-					
-					var user = JSON.parse(this.responseText);
-					
-					/* Find target folder. */
-					var folder = user[0].resources[0];
-					for(var i = 1; i < resource_table.this_breadcrumbs.items.length; i++){
-						/* Has the target folder been reached? */
-						for(var j = 0; j < folder.items.length; j++){
-							if(folder.items[j].name == resource_table.this_breadcrumbs.items[i]){
-								folder = folder.items[j];
-							}
-						}
-					}
-					
-					var original_resource = {};
-					
-					/* Save original resource and delete it from old location.*/
-					for(var i = 0; i < folder.items.length; i++){
-						if(folder.items[i].name == resource_name){
-							original_resource = folder.items[i]
-							folder.items.splice(i, 1);
-						}
-					}
-					
 					/* Generate Close Button. */
 					var close_btn = el_factory('button', {type: "button", class: "close", "data-dismiss": "modal", "aria-label": "Close"}, el_factory('span', {"aria-hidden": "true"}, "x"));
 					
@@ -1005,77 +995,69 @@
 					var modal = el_factory('div', {class: 'modal fade', style: 'top: 30% !important;', id: 'move_modal', tabindex: '-1', role: 'dialog', 'aria-hidden': 'true'},
 						el_factory('div', {class: 'modal-dialog', style: 'max-width: 350px !important;', role: 'document'},
 							el_factory('div', {class: 'modal-content', style: 'border-radius: 0; box-shadow: 0px 0px 10px 1px grey;'},
-								el_factory('div', {class: 'modal-body', id: 'move-modal-body'}, form)
+								el_factory('div', {class: 'modal-body', id: 'move-modal-body'}, form, el_factory('div', {id: 'move-modal-tree'}))
 							)
 						)
 					);
 					
-					
-					
 				  $(document.body).append(modal);
-				  
-				  //var move_table = new datatable('move-modal-body', ["Name"], false, false);
 				
-					var move_table = new datatable({
-						"action_btn": false,
-						"relocate": false,
-						"headers": ["Name"],
-						"target": "move-modal-body",
-						"files": false,
-						"select_btn": true,
-						"breadcrumbs": true
+				
+					$('#move-modal-tree').jstree({
+						'plugins': ["wholerow", "checkbox"],
+						'checkbox': { three_state: false, deselect_all: true },
+						'core': {
+							'data': {
+								"type": 'GET',
+								"url": function (node) {
+									return '/api/users/' + "<%- owner._id %>" + '/treeview/' + resource_guid;
+								},
+								"success": function (new_data) {
+									return new_data;
+								}
+							},
+							'themes': {
+								'name': 'proton',
+								'responsive': true
+							}
+						}
 					});
-				
-				 
-				  
-				  
-				  move_table.render(function(){}, false, null, user);
-				  
 				  
 				  /* Generate Submit Button. */
 					style = 'float: right; border: none !important; color: white !important; font-weight: bold; margin-top: 15px; padding: 7px 15px; background: #007bff; font-size: small;';
 					var submit_btn = el_factory('input', {type: 'submit', 'value': "Move", style: style});
 					
 					submit_btn.addEventListener('click', function(){
-						console.log(move_table.selected);
-						if(move_table.selected.length > 1 || move_table.selected.length == 0)
-							return $.notify("Please select one row.", "error");
+					
+						var checked = $('#move-modal-tree').jstree("get_checked",true);
+						if(checked.length != 1)
+							return $.notify("Please select one folder.", "error");
 						
-						var path = move_table.selected[0].split('/');
-						/* Find target folder. */
-						var folder = user[0].resources[0];
-						for(var i = 1; i < path.length; i++){
-							/* Has the target folder been reached? */
-							for(var j = 0; j < folder.items.length; j++){
-								if(folder.items[j].name == path[i]){
-									folder = folder.items[j];
-								}
-							}
-						}
-						
-						/* Check for duplicate resource names. */
-						for(var i = 0; i < folder.items.length; i++){
-							if(folder.items[i].name == original_resource.name){
-								$.notify("\"" + original_resource.name + "\" already exists in folder \"" + folder.name + "\".", "error");
-								return -1;
-							}
-						}
-						
-						
-						/* Add original to folder. */
-						folder.items.push(original_resource);
-						
-						/* commit to db. */
-						var xhttp1 = new XMLHttpRequest();
-						xhttp1.onreadystatechange = function() {
+						/* Delete from old location. */
+						var xhttp = new XMLHttpRequest();
+						xhttp.onreadystatechange = function() {
 							if (this.readyState == 4 && this.status == 200) {
-								resource_table.render(function(){}, false, null, null);
-								$.notify("\"" + original_resource.name + "\" moved to folder \"" + folder.name + "\".", "success");
+								var xhttp = new XMLHttpRequest();
+								xhttp.onreadystatechange = function() {
+									if (this.readyState == 4 && this.status == 200) {
+										console.log(JSON.parse(this.responseText));
+										resource_table.render(JSON.parse(this.responseText));
+										$('#move_modal').modal('toggle');
+										
+										return $.notify(original.name + " moved.", "success");
+									}
+								};
+								xhttp.open("POST", '/api/users/' + "<%- owner._id %>" + '/resources', true);
+								xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+								original["folder_id"] = checked[0].original.guid;
+								xhttp.send(JSON.stringify(original));
 							}
 						};
-						xhttp1.open("PUT", '/api/users/' + user_id, true);
-						xhttp1.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
-						xhttp1.send(JSON.stringify({"user":user[0]}));
+						var folder = <%- folder %>;
+						xhttp.open("DELETE", '/api/users/' + "<%- owner._id %>" + '/resources/' + folder.guid, true);
+						xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+						xhttp.send(JSON.stringify({target_id : original.guid}));
+
 					});
 				  
 				  document.getElementById('move-modal-body').appendChild(submit_btn);
@@ -1089,10 +1071,7 @@
 					  })
 					
 					
-			   }
-			}
-			xhttp.open("GET", '/api/users/' + user_id, true);
-			xhttp.send(); 
+	
 			
 		}
 		
