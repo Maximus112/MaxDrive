@@ -178,6 +178,7 @@
 		
 		document.addEventListener("DOMContentLoaded", function(event) {
 			//resource_table.this_breadcrumbs.items = <%- breadcrumbs %>;
+			latest_folder_json = <%- folder %>;
 			resource_table.render(<%- folder %>);
 			
 		});
@@ -978,7 +979,7 @@
 		function generate_move_modal(resource_guid){
 
 			var folder = latest_folder_json;
-
+			console.log(folder);
 			var original = {};
 					
 			/* Save original resource and delete it from old location.*/

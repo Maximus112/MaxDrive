@@ -476,14 +476,14 @@ app.post('/api/users/:owner_id/resources', verify_token, (req, res) =>{
 				
 				const finalUser = new Users(user[0]);
 				
-				function find_folder1(obj){
+				function find_current_folder(obj){
 					var res = null;
 					if(obj.guid == current_folder_id){
 						res = obj;
 					} else {
 						for(var i = 0; i < obj.items.length; i++){
 							if(obj.items[i].type == 'folder'){
-								var ret = find_folder1(obj.items[i]);
+								var ret = find_current_folder(obj.items[i]);
 								if(ret != null) res = ret;
 							}
 						}
@@ -491,7 +491,7 @@ app.post('/api/users/:owner_id/resources', verify_token, (req, res) =>{
 					return res;
 				}
 				
-				folder = find_folder1(finalUser.resources);
+				folder = find_current_folder(finalUser.resources);
 				
 				return finalUser.save().then(()=> res.json(folder));
 				
