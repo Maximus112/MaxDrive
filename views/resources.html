@@ -138,6 +138,8 @@
 	
 	<script>
 		
+		var latest_folder_json = {};
+		
 		AWS.config.region = 'eu-west-2'; // Region
 		AWS.config.credentials = new AWS.CognitoIdentityCredentials({
 			IdentityPoolId: 'eu-west-2:ece4887c-a2dd-45e8-a766-6e445673b866',
@@ -286,6 +288,7 @@
 				var xhttp = new XMLHttpRequest();
 				xhttp.onreadystatechange = function(){
 					if(this.readyState == 4 && this.status == 200){
+						latest_folder_json = JSON.parse(this.responseText);
 						_this.render(JSON.parse(this.responseText));
 					}
 				}
@@ -372,6 +375,7 @@
 						xhttp.onreadystatechange = function(){
 							if(this.status == 200 && this.readyState == 4){
 								$.notify("Resource deleted", "success");
+								latest_folder_json = JSON.parse(this.responseText);
 								resource_table.render(JSON.parse(this.responseText));
 							}
 						}
@@ -396,6 +400,7 @@
 							xhttp.onreadystatechange = function(){
 								if(this.status == 200 && this.readyState == 4){
 									$.notify("Resource renamed.", "success");
+									latest_folder_json = JSON.parse(this.responseText);
 									resource_table.render(JSON.parse(this.responseText));
 								}
 							}
@@ -888,13 +893,14 @@
 								xhttp.onreadystatechange = function() {
 									if (this.readyState == 4 && this.status == 200) {
 										$.notify(args.INPUT + " created.", "success");
+										latest_folder_json = JSON.parse(this.responseText);
 										resource_table.render(JSON.parse(this.responseText));
 									}
 								}
 								xhttp.open("POST", '/api/users/' +  "<%= owner._id %>" +'/resources', true);
 								xhttp.setRequestHeader('Content-Type', 'application/json');
 								var folder = <%- folder %>;
-								xhttp.send(JSON.stringify({owner_id: "<%= owner._id %>", folder_id: folder.guid, type: "folder", name: args.INPUT})); 
+								xhttp.send(JSON.stringify({owner_id: "<%= owner._id %>", target_folder_id: folder.guid, type: "folder", name: args.INPUT})); 
 							
 							},{});
 					}}
@@ -971,7 +977,7 @@
 		
 		function generate_move_modal(resource_guid){
 
-			var folder = <%- folder %>;
+			var folder = latest_folder_json;
 
 			var original = {};
 					
@@ -1040,8 +1046,9 @@
 								var xhttp = new XMLHttpRequest();
 								xhttp.onreadystatechange = function() {
 									if (this.readyState == 4 && this.status == 200) {
-										console.log(JSON.parse(this.responseText));
+										latest_folder_json = JSON.parse(this.responseText);
 										resource_table.render(JSON.parse(this.responseText));
+										
 										$('#move_modal').modal('toggle');
 										
 										return $.notify(original.name + " moved.", "success");
@@ -1049,7 +1056,10 @@
 								};
 								xhttp.open("POST", '/api/users/' + "<%- owner._id %>" + '/resources', true);
 								xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
-								original["folder_id"] = checked[0].original.guid;
+								original["target_folder_id"] = checked[0].original.guid;
+								original["current_folder_id"] = folder.guid;
+								console.log(original);
+								
 								xhttp.send(JSON.stringify(original));
 							}
 						};

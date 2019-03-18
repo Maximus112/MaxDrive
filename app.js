@@ -398,7 +398,8 @@ app.get('/api/users/:owner_id/treeview/:omit_id', verify_token, function(req,res
 app.post('/api/users/:owner_id/resources', verify_token, (req, res) =>{
 
 	var owner_id = req.params.owner_id;
-	var folder_id = req.body.folder_id;
+	var target_folder_id = req.body.target_folder_id;
+	var current_folder_id = req.body.current_folder_id;
 	
 	var name = req.body.name;
 	var type = req.body.type;
@@ -410,8 +411,10 @@ app.post('/api/users/:owner_id/resources', verify_token, (req, res) =>{
 	
 	if(owner_id === undefined)
 		return res.json({ error: 'owner_id is required.' });
-	if(folder_id === undefined)
-		return res.json({ error: 'folder_id is required.' });
+	if(target_folder_id === undefined)
+		return res.json({ error: 'target_folder_id is required.' });
+	if(current_folder_id === undefined)
+		current_folder_id = target_folder_id;
 	
 	if(name === undefined)
 		return res.json({ error: 'name is required.' });
@@ -439,7 +442,7 @@ app.post('/api/users/:owner_id/resources', verify_token, (req, res) =>{
 				
 				function find_folder(obj){
 					var res = null;
-					if(obj.guid == folder_id){
+					if(obj.guid == target_folder_id){
 						res = obj;
 					} else {
 						for(var i = 0; i < obj.items.length; i++){
@@ -455,7 +458,7 @@ app.post('/api/users/:owner_id/resources', verify_token, (req, res) =>{
 				var folder = find_folder(user[0].resources);
 			
 				if(folder == null){
-					return res.json({error: "Resource with id '" + req.params.folder_id + "' doesn't exist."});
+					return res.json({error: "Resource with id '" + req.params.target_folder_id + "' doesn't exist."});
 				}
 				
 				/* Is user the owner of this resource? */
@@ -472,6 +475,24 @@ app.post('/api/users/:owner_id/resources', verify_token, (req, res) =>{
 				);
 				
 				const finalUser = new Users(user[0]);
+				
+				function find_folder1(obj){
+					var res = null;
+					if(obj.guid == current_folder_id){
+						res = obj;
+					} else {
+						for(var i = 0; i < obj.items.length; i++){
+							if(obj.items[i].type == 'folder'){
+								var ret = find_folder1(obj.items[i]);
+								if(ret != null) res = ret;
+							}
+						}
+					}
+					return res;
+				}
+				
+				folder = find_folder1(finalUser.resources);
+				
 				return finalUser.save().then(()=> res.json(folder));
 				
 			}
