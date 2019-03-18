@@ -468,14 +468,15 @@ app.post('/api/users/:owner_id/resources', verify_token, (req, res) =>{
 				
 				/* TODO - Check if user is authorized to access resource through sharing. */
 				
-				folder.items.push(
-					{
+				var payload = {
 						'guid': guid, 'name': name, 'type': type, 'items': items, 'revisions': revisions, 'sharing': sharing, 'activity': activity
-					}
-				);
+					};
+				
+				folder.items.push(payload);
 				
 				const finalUser = new Users(user[0]);
 				
+				/* Return the folder requested by the client. */
 				function find_current_folder(obj){
 					var res = null;
 					if(obj.guid == current_folder_id){
