@@ -544,9 +544,7 @@
 					var update = {
 						"update": function(){
 							
-							/* TODO - Ensure revision names are the same. */
-							
-							var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
+							var _this = this;
 						
 							/* Open file dialog. */
 							var file = el_factory('input', {type: 'file'});
@@ -559,7 +557,7 @@
 								if (file) {
 									/* Generate GUID for file name. */
 									uuid = uuidv4();
-									var objKey = user_id + '/' + uuid;
+									var objKey = "<%- owner._id %>" + '/' + uuid;
 									var params = {
 										Key: objKey,
 										ContentType: file.type,
@@ -573,6 +571,46 @@
 											$.notify(err.message, "error");
 											ret = -1;
 										}
+										
+										var revision = {
+											"uuid": uuid,
+											"name": params.Body.name,
+											"extension": params.Body.type,
+											"size": params.Body.size,
+											"download": res.Location,
+											"modified": params.Body.lastModifiedDate,
+											"date": Date.now(),
+											"preview":""
+										};
+										
+										var resource_id = _this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
+										console.log(resource_id);
+										var xhttp = new XMLHttpRequest();
+										xhttp.onreadystatechange = function(){
+											if(this.status == 200 && this.readyState == 4){
+												$.notify("Revision added.", "success");
+												latest_folder_json = JSON.parse(this.responseText);
+												resource_table.render(JSON.parse(this.responseText));
+											}
+										}
+										var folder = <%- folder %>;
+										
+										var target = null;
+										for(var i = 0; i < folder.items.length; i++){
+											if(folder.items[i].guid == resource_id){
+												target = folder.items[i];
+											}
+										}
+										
+										target.revisions.push(revision);
+										
+										xhttp.open("PUT", "/api/users/" + "<%- owner._id %>" + "/resources/" + folder.guid);
+										xhttp.setRequestHeader("Content-Type", "application/json");
+										xhttp.send(JSON.stringify({target: target}));
+										
+										
+										
+										/*
 										resource_table.render(function(data){
 											
 											var ret = 0;
@@ -591,7 +629,7 @@
 												"comments":"First revision."
 											};
 											
-											/* Check for duplicate fie names before uploading to S3. */
+										
 											for(var i = 0; i < data.folder.items.length; i++){
 												if(data.folder.items[i].name == name){
 													data.folder.items[i].revisions.push(revision);
@@ -601,6 +639,11 @@
 											return 0;
 											
 										}, true, "Revision added successfully.", null);	
+										*/
+										
+										
+										
+										
 									});
 								}
 							})
