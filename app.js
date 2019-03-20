@@ -298,12 +298,15 @@ app.get('/api/users/:owner_id/resources/:resource_id', verify_token, function(re
 				}
 				breadcrumbs.unshift(user[0].resources);
 				
+				
 				if(req.params.owner_id != req.client_id){
 					return res.json({error: "You don't have access to this resource."});
 				}
 				
 				/* TODO - Check if user is authorized to access resource through sharing. */
-
+				
+				
+				
 				return res.render('resources.html', {client_id: req.client_id, folder: JSON.stringify(folder), owner: user[0], breadcrumbs: JSON.stringify(breadcrumbs)});
 
 			}

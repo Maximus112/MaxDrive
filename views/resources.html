@@ -267,6 +267,8 @@
 			/* Gets the current folder from breadcrumbs and renders or updates using the callback function. */
 			this.render = function(folder){
 				
+				console.log(folder);
+				
 				var _this = this;
 				
 				/* Reset selected on render. */
@@ -457,18 +459,14 @@
 					/* Open a modal with a table detailing the version history of the file. */
 					var ver_hist_item = { "version history" : function(){
 						
-						var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[1].innerHTML;
+						var guid = this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
 						
-						
-						
-						/* Find target folder. */
 						var folder = latest_folder_json;
-						for(var i = 1; i < resource_table.this_breadcrumbs.items.length; i++){
-							/* Has the target folder been reached? */
-							for(var j = 0; j < folder.items.length; j++){
-								if(folder.items[j].name == resource_table.this_breadcrumbs.items[i]){
-									folder = folder.items[j];
-								}
+						
+						/* Has the target folder been reached? */
+						for(var i = 0; i < folder.items.length; i++){
+							if(folder.items[i].guid == guid){
+								folder = folder.items[i];
 							}
 						}
 						
@@ -492,14 +490,6 @@
 						
 					  $(document.body).append(modal);
 						
-						var revisions = null;
-						
-						/* Find revisions. */
-						for(var i = 0; i < folder.items.length; i++){
-							if(folder.items[i].name == name){
-								revisions = folder.items[i].revisions;
-							}
-						}
 					
 						var ver_hist_table = new datatable({
 							"action_btn": true,
@@ -509,27 +499,13 @@
 							"select_btn": false,
 							"breadcrumbs": false
 						});
-					  
-						console.log(revisions);
-						// ver_hist_table.render_revisions(revisions);
-					  
-						var revisions = null;
 						
-						/* Find revisions. */
-						for(var i = 0; i < folder.items.length; i++){
-							if(folder.items[i].name == name){
-								revisions = folder.items[i].revisions;
-							}
+						
+						
+						for(var i = 0; i < folder.revisions.length; i++){
+							ver_hist_table.add_row([folder.revisions[i].name, folder.revisions[i].size, folder.revisions[i].date], i, folder.revisions[i].guid);
 						}
-						
-						
-					
-						for(var i = 0; i < revisions.length; i++){
-							ver_hist_table.add_row([revisions[i].name, revisions[i].size, revisions[i].date], i);
-						}
-					  
 
-					  
 						/* Open the text modal. */
 						$('#ver_hist_modal').modal('toggle');
 						/* Destroy the modal on close. */
@@ -556,8 +532,8 @@
 								/* Upload to AWS. */
 								if (file) {
 									/* Generate GUID for file name. */
-									uuid = uuidv4();
-									var objKey = "<%- owner._id %>" + '/' + uuid;
+									var guid = uuidv4();
+									var objKey = "<%- owner._id %>" + '/' + guid;
 									var params = {
 										Key: objKey,
 										ContentType: file.type,
@@ -573,7 +549,7 @@
 										}
 										
 										var revision = {
-											"uuid": uuid,
+											"guid": guid,
 											"name": params.Body.name,
 											"extension": params.Body.type,
 											"size": params.Body.size,
@@ -584,7 +560,6 @@
 										};
 										
 										var resource_id = _this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
-										console.log(resource_id);
 										var xhttp = new XMLHttpRequest();
 										xhttp.onreadystatechange = function(){
 											if(this.status == 200 && this.readyState == 4){
@@ -593,7 +568,7 @@
 												resource_table.render(JSON.parse(this.responseText));
 											}
 										}
-										var folder = <%- folder %>;
+										var folder = latest_folder_json;
 										
 										var target = null;
 										for(var i = 0; i < folder.items.length; i++){
@@ -608,42 +583,6 @@
 										xhttp.setRequestHeader("Content-Type", "application/json");
 										xhttp.send(JSON.stringify({target: target}));
 										
-										
-										
-										/*
-										resource_table.render(function(data){
-											
-											var ret = 0;
-											
-											console.log(file);
-											
-											var revision = {
-												"uuid": uuid,
-												"name": params.Body.name,
-												"extension": params.Body.type,
-												"size": params.Body.size,
-												"download": res.Location,
-												"modified": params.Body.lastModifiedDate,
-												"date": Date.now(),
-												"preview":"",
-												"comments":"First revision."
-											};
-											
-										
-											for(var i = 0; i < data.folder.items.length; i++){
-												if(data.folder.items[i].name == name){
-													data.folder.items[i].revisions.push(revision);
-												}
-											}
-											
-											return 0;
-											
-										}, true, "Revision added successfully.", null);	
-										*/
-										
-										
-										
-										
 									});
 								}
 							})
@@ -651,69 +590,37 @@
 						}
 					};
 					
-					var delete_revision = {
-						"delete": function(){
-							var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[0].innerHTML;
-							var _this = this;
-							
-							resource_table.render(function(data){
-								
-								/* TODO - Disable deletion on last revision. */
-
-								var index = _this.parentNode.parentNode.parentNode.parentNode.dataset.index;
-								for(var i = 0; i < data.folder.items.length; i++){
-									if(data.folder.items[i].name == name){
-										
-										data.folder.items[i].revisions.splice(index, 1);
-									}
-								}
-								
-								$('#ver_hist_modal').modal('toggle');
-								
-								return 0;
-								
-							}, true, "Revision deleted successfully.", null);	
-							
-					}};
-					
 					var download_revision = {
 						"download": function(){
 							
+							var guid = this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
 							
-							
-							var name = this.parentNode.parentNode.parentNode.parentNode.childNodes[0].innerHTML;
-							var _this = this;
-							var index = _this.parentNode.parentNode.parentNode.parentNode.dataset.index;
-							
-							resource_table.render(function(data){
-								
-								
-								/* Get download link. */
-								var download_link = null;
-								for(var i = 0; i < data.folder.items.length; i++){
-									if(data.folder.items[i].name == name){
-										download_link = data.folder.items[i].revisions[index].download;
+							var folder = latest_folder_json;
+							var url = null;
+
+							/* Find revision */
+							for(var i = 0; i < folder.items.length; i++){
+								if(folder.items[i].type == 'file'){
+									console.log(folder.items[i].revisions);
+									for(var j = 0; j < folder.items[i].revisions.length; j++){
+										if(folder.items[i].revisions[j].guid == guid){
+											url = folder.items[i].revisions[j].download;
+										}
 									}
 								}
-								
-								
-								
-								console.log(download_link);
-								
-								function downloadURI(uri) {
-								  var link = document.createElement("a");
-								  link.href = uri;
-								  document.body.appendChild(link);
-								  link.click();
-								  document.body.removeChild(link);
-								  delete link;
-								}
-								
-								downloadURI(download_link);
-								
-								return 0;
+							}
+
+							function downloadURI(uri) {
+							  var link = document.createElement("a");
+							  link.href = uri;
+							  document.body.appendChild(link);
+							  link.click();
+							  document.body.removeChild(link);
+							  delete link;
+							}
 							
-							}, false, null, null);
+							downloadURI(url);
+		
 						}
 					};
 					
@@ -724,23 +631,27 @@
 						}
 					};
 					
+					var share = {
+						"share": function(){
+							
+						}
+					};
+					
+					
 					if(resource_type == 'file'){
 						menu_items.push(download_item);
 						menu_items.push(ver_hist_item);
 						menu_items.push(update);
-					}
-					
-					if(resource_type == 'file' || resource_type == 'folder'){
-					
 						menu_items.push(delete_item);
 						menu_items.push(move_item);
-					
+						menu_items.push(share);
 					}
-					
+	
 					if(resource_type == 'folder'){
-					
 						menu_items.push(rename_item);
-					
+						menu_items.push(delete_item);
+						menu_items.push(move_item);
+						menu_items.push(share);
 					}
 					
 					/* It must be a revision. */
@@ -748,7 +659,6 @@
 					
 						menu_items.push(view_revision);
 						menu_items.push(download_revision);
-						menu_items.push(delete_revision);
 					
 					}
 					
