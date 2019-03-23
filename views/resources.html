@@ -265,9 +265,7 @@
 			}
 			
 			/* Gets the current folder from breadcrumbs and renders or updates using the callback function. */
-			this.render = function(folder){
-				
-				console.log(folder);
+			this.render = function(resource){
 				
 				var _this = this;
 				
@@ -279,9 +277,14 @@
 				_this.this_breadcrumbs.items.length = 0;
 				_this.this_breadcrumbs.items = <%- breadcrumbs %>;
 				_this.this_breadcrumbs.update(_this._data);
-				for(var i = 0; i < folder.items.length; i++){
-					if(folder.items[i].type == 'folder' || (folder.items[i].type == 'file' && _this.config.files == true))
-						_this.add_row([folder.items[i].name, folder.items[i].type, "TBC", "TBC"], i, folder.items[i].guid);
+				
+				if(resource.type == 'file'){
+					_this.add_row([resource.name, resource.type, "TBC", "TBC"], i, resource.guid);
+				} else if (resource.type == 'folder'){
+					for(var i = 0; i < resource.items.length; i++){
+						if(resource.items[i].type == 'folder' || (resource.items[i].type == 'file' && _this.config.files == true))
+							_this.add_row([resource.items[i].name, resource.items[i].type, "TBC", "TBC"], i, resource.items[i].guid);
+					}
 				}
 			}
 			
@@ -634,6 +637,71 @@
 					var share = {
 						"share": function(){
 							
+							/* Generate Modal. */
+							
+							/* Generate Close Button. */
+							var close_btn = el_factory('button', {type: "button", class: "close", "data-dismiss": "modal", "aria-label": "Close"}, el_factory('span', {"aria-hidden": "true"}, "x"));
+							
+							/* Generate Title. */
+							var title = el_factory('label', {for: 'NewDocumentName', class: 'col-form-label', style: 'padding: 10px 0px; color: black; font-weight: normal; font-size: large;'}, "Sharing");
+						
+							/* Generate Form. */
+							var form = el_factory('form', {id: 'modal_form'}, close_btn, title);
+							
+							/* Generate Modal. */
+							var modal = el_factory('div', {class: 'modal fade', style: 'top: 30% !important;', id: 'text_modal', tabindex: '-1', role: 'dialog', 'aria-hidden': 'true'},
+								el_factory('div', {class: 'modal-dialog', style: 'max-width: 350px !important;', role: 'document'},
+									el_factory('div', {class: 'modal-content', style: 'border-radius: 0; box-shadow: 0px 0px 10px 1px grey;'},
+										el_factory('div', {class: 'modal-body'}, form)
+									)
+								)
+							);
+					
+						  $(document.body).append(modal);
+							
+							 /* Open the text modal. */
+							$('#text_modal').modal('toggle');
+							
+							/* Generate users list and add button for adding users. */
+							
+							/* Static text for link */
+							
+							
+								/* Get userid from email. Could hand
+								
+								
+								
+								/* Add user id to sharing property. 
+								var guid = this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
+								console.log(guid);
+								var folder = latest_folder_json;
+		
+								var xhttp = new XMLHttpRequest();
+								xhttp.onreadystatechange = function(){
+									if(this.status == 200 && this.readyState == 4){
+										$.notify("Resource shared.", "success");
+										latest_folder_json = JSON.parse(this.responseText);
+										resource_table.render(JSON.parse(this.responseText));
+									}
+								}
+								var folder = latest_folder_json;
+								
+								var target = null;
+								for(var i = 0; i < folder.items.length; i++){
+									if(folder.items[i].guid == guid){
+										target = folder.items[i];
+									}
+								}
+								
+								target["sharing"].length = 0;
+								target["sharing"].push("5c8a736f03960504092c260e");
+								
+								xhttp.open("PUT", "/api/users/" + "<%- owner._id %>" + "/resources/" + folder.guid);
+								xhttp.setRequestHeader("Content-Type", "application/json");
+								xhttp.send(JSON.stringify({target: target}));
+								*/
+					
+							
 						}
 					};
 					
@@ -795,43 +863,7 @@
 									var folder = <%- folder %>;
 									payload["target_folder_id"] = folder.guid;
 									xhttp.send(JSON.stringify(payload)); 
-									
-									/*
-									resource_table.render(function(data){
-										
-										var ret = 0;
-										
-										console.log(file);	
-								
-										var payload = {
-											"type": 'file',
-											"resource_id": uuidv4(),
-											"name": params.Body.name,
-											"size": params.Body.size,
-											"revisions":[
-												{
-													"uuid": uuid,
-													"name": params.Body.name,
-													"extension": params.Body.type,
-													"size": params.Body.size,
-													"download": res.Location,
-													"modified": params.Body.lastModifiedDate,
-													"date": Date.now(),
-													"preview":"",
-													"comments":"First revision."
-												}
-											]
-										};
-										
-										data.folder.items.push(payload);
-										
-										return 0;
-										
-									}, true, "File \"" + params.Body.name + "\" uploaded successfully.", null);	
-									*/
-									
-									
-									
+
 								});
 							}
 						})

@@ -10,13 +10,7 @@ const resources_schema = new Schema({
 	type: String,
 	parent_id: String,
 	revisions: [],
-	sharing :{
-		link:{
-			url: String,
-			edit:String
-		},
-		members:[]
-	},
+	sharing :[],
 	deleted: String,
 	activity:[]
 });
