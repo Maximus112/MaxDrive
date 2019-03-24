@@ -637,70 +637,120 @@
 					var share = {
 						"share": function(){
 							
-							/* Generate Modal. */
+							var guid = this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
+						
+							var folder = latest_folder_json;
 							
+							/* Has the target folder been reached? */
+							for(var i = 0; i < folder.items.length; i++){
+								if(folder.items[i].guid == guid){
+									folder = folder.items[i];
+								}
+							}
+							console.log(folder);
 							/* Generate Close Button. */
 							var close_btn = el_factory('button', {type: "button", class: "close", "data-dismiss": "modal", "aria-label": "Close"}, el_factory('span', {"aria-hidden": "true"}, "x"));
 							
 							/* Generate Title. */
-							var title = el_factory('label', {for: 'NewDocumentName', class: 'col-form-label', style: 'padding: 10px 0px; color: black; font-weight: normal; font-size: large;'}, "Sharing");
-						
+							var title = el_factory('label', {for: 'NewDocumentName', class: 'col-form-label', style: 'display: block; padding: 10px 0px; color: black; font-weight: normal; font-size: large;'}, "Sharing");
+							
+							/* Generate Input. */
+							var input = el_factory('input', {type: 'text', placeholder: "Email Address", class: 'form-control', id: 'share-email-input', required: 'true'});
+							var share_btn = el_factory('button', {class:'btn btn-primary'}, "Share");
+							var prepend = el_factory('div', {class: 'input-group-prepend'}, el_factory('span', {class: 'input-group-text'}, "@"));
+							var input_group = el_factory('div', {class: 'input-group', style: 'margin-bottom: 10px'}, prepend, input, share_btn);
+							
+							var list_group = el_factory('ul', {class: 'list-group', id: 'sharing-list'});
+							
 							/* Generate Form. */
-							var form = el_factory('form', {id: 'modal_form'}, close_btn, title);
+							var form = el_factory('form', {id: 'modal_form'}, close_btn, title, input_group);
+							
+							form.addEventListener('submit', function(e){
+								e.preventDefault();
+								/* Find user from email address. */
+								var email = document.getElementById('share-email-input').value;
+								console.log(email);
+								var xhttp = new XMLHttpRequest();
+								xhttp.onreadystatechange = function(){
+									if(this.status == 200 && this.readyState == 4){
+										var user = null;
+										var users = JSON.parse(this.responseText);
+										for(var i = 0; i < users.length; i++){
+											if(users[i].email == email){
+												user = users[i];
+											}
+										}
+										if(user == null){
+											return $.notify("User with email address " + email + " doesn't exist.", "error");
+										}
+										
+										for(var i = 0; i < folder.sharing.length; i++){
+											if(folder.sharing[i].email == email){
+												return $.notify("You have already shared this resource with " + email + ".", "error");
+											}
+										}
+										
+										/* Add user id and email to sharing array. */
+										folder.sharing.push(user);
+										
+										var xhttp = new XMLHttpRequest();
+										xhttp.onreadystatechange = function(){
+											if(this.status == 200 && this.readyState == 4){
+												/* Close the modal. */
+												$('#share_modal').modal('toggle');
+												latest_folder_json = JSON.parse(this.responseText);
+												$.notify("Resource shared with " + email + ".", "success");
+											}
+										}
+										
+										xhttp.open("PUT", "/api/users/" + "<%- owner._id %>" + "/resources/" + latest_folder_json.guid);
+										xhttp.setRequestHeader("Content-Type", "application/json");
+										xhttp.send(JSON.stringify({target: folder}));
+
+									}
+								}
+								
+								xhttp.open("GET", "/api/users");
+								xhttp.send();
+								
+								
+								
+							});
 							
 							/* Generate Modal. */
-							var modal = el_factory('div', {class: 'modal fade', style: 'top: 30% !important;', id: 'text_modal', tabindex: '-1', role: 'dialog', 'aria-hidden': 'true'},
-								el_factory('div', {class: 'modal-dialog', style: 'max-width: 350px !important;', role: 'document'},
+							var modal = el_factory('div', {class: 'modal fade', style: 'top: 30% !important;', id: 'share_modal', tabindex: '-1', role: 'dialog', 'aria-hidden': 'true'},
+								el_factory('div', {class: 'modal-dialog  modal-md', role: 'document'},
 									el_factory('div', {class: 'modal-content', style: 'border-radius: 0; box-shadow: 0px 0px 10px 1px grey;'},
-										el_factory('div', {class: 'modal-body'}, form)
+										el_factory('div', {class: 'modal-body'}, form, list_group)
 									)
 								)
 							);
 					
-						  $(document.body).append(modal);
+							$(document.body).append(modal);
 							
-							 /* Open the text modal. */
-							$('#text_modal').modal('toggle');
+							/* Add users to list. */
+							var sharing_list = document.getElementById('sharing-list');
+							for(var i = 0; i < folder.sharing.length; i++){
+								var delete_btn = el_factory('button', {class:'btn btn-danger btn-sm', style: 'float: right'}, "Remove");
+								delete_btn.addEventListener('click', function(){
+									console.log('delete');
+								});
+								var list_item = el_factory('li', {class: 'list-group-item'}, el_factory('span', {style: 'vertical-align: -webkit-baseline-middle', 'data-user_id': folder.sharing[i].user_id}, folder.sharing[i].email), delete_btn);
+								sharing_list.appendChild(list_item);
+							}
 							
-							/* Generate users list and add button for adding users. */
+							/* Open the modal. */
+							$('#share_modal').modal('toggle');
 							
 							/* Static text for link */
 							
 							
-								/* Get userid from email. Could hand
-								
-								
-								
-								/* Add user id to sharing property. 
-								var guid = this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
-								console.log(guid);
-								var folder = latest_folder_json;
-		
-								var xhttp = new XMLHttpRequest();
-								xhttp.onreadystatechange = function(){
-									if(this.status == 200 && this.readyState == 4){
-										$.notify("Resource shared.", "success");
-										latest_folder_json = JSON.parse(this.responseText);
-										resource_table.render(JSON.parse(this.responseText));
-									}
-								}
-								var folder = latest_folder_json;
-								
-								var target = null;
-								for(var i = 0; i < folder.items.length; i++){
-									if(folder.items[i].guid == guid){
-										target = folder.items[i];
-									}
-								}
-								
-								target["sharing"].length = 0;
-								target["sharing"].push("5c8a736f03960504092c260e");
-								
-								xhttp.open("PUT", "/api/users/" + "<%- owner._id %>" + "/resources/" + folder.guid);
-								xhttp.setRequestHeader("Content-Type", "application/json");
-								xhttp.send(JSON.stringify({target: target}));
-								*/
 					
+							/* Destroy the modal on close. */
+							  $('#share_modal').on('hidden.bs.modal', function() {
+								var elem = document.querySelector('#share_modal');
+								elem.parentNode.removeChild(elem);
+							  })
 							
 						}
 					};

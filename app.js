@@ -79,7 +79,7 @@ function verify_token(req, res, next){
 	});
 }
 
-/* Retrieves all users. Development purposes only. */
+/* Retrieves all users. */
 app.get('/api/users', (req, res, next) => {
 	return Users.find({}).select('_id email').then((users) =>{
 		if(users.length === 0)
@@ -308,7 +308,7 @@ app.get('/api/users/:owner_id/resources/:resource_id', verify_token, function(re
 				var found_flag = false;
 				if(typeof folder["sharing"] != 'undefined'){
 					for(var i = 0; i < folder.sharing.length; i++){
-						if(folder.sharing[i] == req.client_id)
+						if(folder.sharing[i]._id == req.client_id)
 							found_flag = true;
 					}
 				}
