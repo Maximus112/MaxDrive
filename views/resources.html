@@ -106,7 +106,7 @@
 			  <ul class="navbar-nav mr-auto">
 			  <li class="nav-item dropdown">
 				<a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-				  <%= owner.email %>
+				  <%= client_email %>
 				</a>
 				<div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
 				  <a class="dropdown-item" href="#">Change Password</a>
@@ -149,8 +149,6 @@
 		  apiVersion: '2006-03-01',
 		  params: {Bucket: 'maxdrive'}
 		});
-		
-		var client_id = "<%= client_id %>";
 		
 		var side_nav_open = true;
 		
@@ -652,7 +650,24 @@
 							var close_btn = el_factory('button', {type: "button", class: "close", "data-dismiss": "modal", "aria-label": "Close"}, el_factory('span', {"aria-hidden": "true"}, "x"));
 							
 							/* Generate Title. */
-							var title = el_factory('label', {for: 'NewDocumentName', class: 'col-form-label', style: 'display: block; padding: 10px 0px; color: black; font-weight: normal; font-size: large;'}, "Sharing");
+							var title = el_factory('h3', {}, "Sharing");
+							var link = window.location.href.split("resources")[0] + "resources/" + guid;
+							var copy_btn = el_factory('button', {class:'btn btn-primary'}, "Copy");
+							copy_btn.addEventListener('click', function(e){
+								e.preventDefault();
+								var copyText = document.getElementById("resource-link");
+
+								  /* Select the text field */
+								  copyText.select();
+
+								  /* Copy the text inside the text field */
+								  document.execCommand("copy");
+								  
+								  $.notify('link copied to clipboard.', "success");
+						
+							});
+							var label = el_factory('input', {class: 'form-control', type: 'text', value: link, id: 'resource-link', readonly: "true"});//
+							var input_group_link = el_factory('div', {class: 'input-group', style: 'margin-bottom: 10px'}, label, copy_btn);
 							
 							/* Generate Input. */
 							var input = el_factory('input', {type: 'text', placeholder: "Email Address", class: 'form-control', id: 'share-email-input', required: 'true'});
@@ -663,7 +678,7 @@
 							var list_group = el_factory('ul', {class: 'list-group', id: 'sharing-list'});
 							
 							/* Generate Form. */
-							var form = el_factory('form', {id: 'modal_form'}, close_btn, title, input_group);
+							var form = el_factory('form', {id: 'modal_form'}, close_btn, title, input_group_link, input_group);
 							
 							form.addEventListener('submit', function(e){
 								e.preventDefault();
@@ -702,7 +717,7 @@
 												$.notify("Resource shared with " + email + ".", "success");
 											}
 										}
-										
+
 										xhttp.open("PUT", "/api/users/" + "<%- owner._id %>" + "/resources/" + latest_folder_json.guid);
 										xhttp.setRequestHeader("Content-Type", "application/json");
 										xhttp.send(JSON.stringify({target: folder}));
@@ -733,9 +748,25 @@
 							for(var i = 0; i < folder.sharing.length; i++){
 								var delete_btn = el_factory('button', {class:'btn btn-danger btn-sm', style: 'float: right'}, "Remove");
 								delete_btn.addEventListener('click', function(){
-									console.log('delete');
+									
+									var xhttp = new XMLHttpRequest();
+									xhttp.onreadystatechange = function(){
+										if(this.status == 200 && this.readyState == 4){
+											/* Close the modal. */
+											$('#share_modal').modal('toggle');
+											latest_folder_json = JSON.parse(this.responseText);
+											$.notify("User removed.", "success");
+										}
+									}
+									
+									folder.sharing.splice(this.parentNode.dataset.index, 1);
+									
+									xhttp.open("PUT", "/api/users/" + "<%- owner._id %>" + "/resources/" + latest_folder_json.guid);
+									xhttp.setRequestHeader("Content-Type", "application/json");
+									xhttp.send(JSON.stringify({target: folder}));
+									
 								});
-								var list_item = el_factory('li', {class: 'list-group-item'}, el_factory('span', {style: 'vertical-align: -webkit-baseline-middle', 'data-user_id': folder.sharing[i].user_id}, folder.sharing[i].email), delete_btn);
+								var list_item = el_factory('li', {class: 'list-group-item', 'data-index': i}, el_factory('span', {style: 'vertical-align: -webkit-baseline-middle', 'data-user_id': folder.sharing[i].user_id}, folder.sharing[i].email), delete_btn);
 								sharing_list.appendChild(list_item);
 							}
 							

@@ -122,7 +122,7 @@ app.post('/api/users', (req, res, err) => {
 				resources: {
 					"type": "folder",
 					"guid": "root",
-					"name": "root",
+					"name": req.body.email,
 					"items": [],
 					"revisions": []
 				}
@@ -318,7 +318,13 @@ app.get('/api/users/:owner_id/resources/:resource_id', verify_token, function(re
 					return res.json({error: "You don't have access to this resource."});
 				}
 				
-				return res.render('resources.html', {client_id: req.client_id, folder: JSON.stringify(folder), owner: user[0], breadcrumbs: JSON.stringify(breadcrumbs)});
+				/* Get client email for EJS. */
+				Users.find({_id: req.client_id}, function(err, client){
+					
+					return res.render('resources.html', {client_email: client[0].email, folder: JSON.stringify(folder), owner: user[0], breadcrumbs: JSON.stringify(breadcrumbs)});
+				});
+				
+				
 
 			}
 		});
@@ -470,17 +476,25 @@ app.post('/api/users/:owner_id/resources', verify_token, (req, res) =>{
 				}
 				
 				var folder = find_folder(user[0].resources);
-			
+				
 				if(folder == null){
 					return res.json({error: "Resource with id '" + req.params.target_folder_id + "' doesn't exist."});
 				}
 				
-				/* Is user the owner of this resource? */
-				if(owner_id != req.client_id){
-					return res.json({error: "User with id " + req.client_id + " does not have access to this resource."});
+				/* Check if user is authorized to access resource through sharing. */
+				var found_flag = false;
+				if(typeof folder["sharing"] != 'undefined'){
+					for(var i = 0; i < folder.sharing.length; i++){
+						if(folder.sharing[i]._id == req.client_id)
+							found_flag = true;
+					}
 				}
 				
-				/* TODO - Check if user is authorized to access resource through sharing. */
+				
+				if(owner_id != req.client_id && found_flag == false){
+					return res.status(400).json({error: "You don't have access to this resource."});
+				}
+				
 				
 				var payload = {
 						'guid': guid, 'name': name, 'type': type, 'items': items, 'revisions': revisions, 'sharing': sharing, 'activity': activity
