@@ -295,6 +295,9 @@
 						latest_folder_json = JSON.parse(this.responseText);
 						_this.render(JSON.parse(this.responseText));
 					}
+					else{
+						console.log(this.responseText);
+					}
 				}
 				var folder = <%- folder %>;
 				console.log();
@@ -383,6 +386,9 @@
 								latest_folder_json = JSON.parse(this.responseText);
 								resource_table.render(JSON.parse(this.responseText));
 							}
+							else{
+								console.log(this.responseText);
+							}
 						}
 						var folder = <%- folder %>;
 						xhttp.open("DELETE", "/api/users/" + "<%- owner._id %>" + "/resources/" + folder.guid);
@@ -407,6 +413,9 @@
 									$.notify("Resource renamed.", "success");
 									latest_folder_json = JSON.parse(this.responseText);
 									resource_table.render(JSON.parse(this.responseText));
+								}
+								else{
+									console.log(this.responseText);
 								}
 							}
 							var folder = <%- folder %>;
@@ -568,6 +577,9 @@
 												latest_folder_json = JSON.parse(this.responseText);
 												resource_table.render(JSON.parse(this.responseText));
 											}
+											else{
+												console.log(this.responseText);
+											}
 										}
 										var folder = latest_folder_json;
 										
@@ -716,12 +728,18 @@
 												latest_folder_json = JSON.parse(this.responseText);
 												$.notify("Resource shared with " + email + ".", "success");
 											}
+											else{
+												console.log(this.responseText);
+											}
 										}
 
 										xhttp.open("PUT", "/api/users/" + "<%- owner._id %>" + "/resources/" + latest_folder_json.guid);
 										xhttp.setRequestHeader("Content-Type", "application/json");
 										xhttp.send(JSON.stringify({target: folder}));
 
+									}
+									else{
+										console.log(this.responseText);
 									}
 								}
 								
@@ -756,6 +774,9 @@
 											$('#share_modal').modal('toggle');
 											latest_folder_json = JSON.parse(this.responseText);
 											$.notify("User removed.", "success");
+										}
+										else{
+											console.log(this.responseText);
 										}
 									}
 									
@@ -792,14 +813,18 @@
 						menu_items.push(ver_hist_item);
 						menu_items.push(update);
 						menu_items.push(delete_item);
-						menu_items.push(move_item);
+						if("<%-owner.email%>" == "<%-client_email%>"){
+							menu_items.push(move_item);
+						}
 						menu_items.push(share);
 					}
 	
 					if(resource_type == 'folder'){
 						menu_items.push(rename_item);
 						menu_items.push(delete_item);
-						menu_items.push(move_item);
+						if("<%-owner.email%>" == "<%-client_email%>"){
+							menu_items.push(move_item);
+						}
 						menu_items.push(share);
 					}
 					
@@ -938,6 +963,9 @@
 											latest_folder_json = JSON.parse(this.responseText);
 											resource_table.render(JSON.parse(this.responseText));
 										}
+										else{
+											console.log(this.responseText);
+										}
 									}
 									xhttp.open("POST", '/api/users/' +  "<%= owner._id %>" +'/resources', true);
 									xhttp.setRequestHeader('Content-Type', 'application/json');
@@ -961,6 +989,9 @@
 										$.notify(args.INPUT + " created.", "success");
 										latest_folder_json = JSON.parse(this.responseText);
 										resource_table.render(JSON.parse(this.responseText));
+									}
+									else{
+										console.log(this.responseText);
 									}
 								}
 								xhttp.open("POST", '/api/users/' +  "<%= owner._id %>" +'/resources', true);
@@ -1126,6 +1157,9 @@
 										
 										return $.notify(original.name + " moved.", "success");
 									}
+									else{
+										console.log(this.responseText);
+									}
 								};
 								xhttp.open("POST", '/api/users/' + "<%- owner._id %>" + '/resources', true);
 								xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
@@ -1134,6 +1168,9 @@
 								console.log(original);
 								
 								xhttp.send(JSON.stringify(original));
+							}
+							else{
+								console.log(this.responseText);
 							}
 						};
 						var folder = <%- folder %>;

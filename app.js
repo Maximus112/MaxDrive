@@ -306,16 +306,17 @@ app.get('/api/users/:owner_id/resources/:resource_id', verify_token, function(re
 				
 				/* Check if user is authorized to access resource through sharing. */
 				var found_flag = false;
-				if(typeof folder["sharing"] != 'undefined'){
-					for(var i = 0; i < folder.sharing.length; i++){
-						if(folder.sharing[i]._id == req.client_id)
-							found_flag = true;
+				for(var i = 0; i < breadcrumbs.length; i++){
+					if(typeof breadcrumbs[i]["sharing"] != 'undefined'){
+						for(var j = 0; j < breadcrumbs[i].sharing.length; j++){
+							if(breadcrumbs[i].sharing[j]._id == req.client_id)
+								found_flag = true;
+						}
 					}
 				}
 				
-				
 				if(req.params.owner_id != req.client_id && found_flag == false){
-					return res.json({error: "You don't have access to this resource."});
+					return res.status(400).json({error: "You don't have access to this resource."});
 				}
 				
 				/* Get client email for EJS. */
@@ -460,45 +461,57 @@ app.post('/api/users/:owner_id/resources', verify_token, (req, res) =>{
 				return res.json({error: "owner_id " + owner_id + " not found."});
 			} else{
 				
-				function find_folder(obj){
+				var breadcrumbs = [];
+				
+				function find_resource(obj){
 					var res = null;
+					/* Is the folder the target. */
 					if(obj.guid == target_folder_id){
 						res = obj;
 					} else {
 						for(var i = 0; i < obj.items.length; i++){
-							if(obj.items[i].type == 'folder'){
-								var ret = find_folder(obj.items[i]);
-								if(ret != null) res = ret;
+							/* Is the item the target? */
+							if(obj.items[i].guid == target_folder_id){
+								breadcrumbs.unshift(obj.items[i]);
+								res = obj.items[i];
+							}
+							else if(obj.items[i].type == 'folder'){
+								var ret = find_resource(obj.items[i]);
+								if(ret != null) {
+									breadcrumbs.unshift(obj.items[i]);
+									res = ret;
+								}
 							}
 						}
 					}
 					return res;
 				}
 				
-				var folder = find_folder(user[0].resources);
-				
+				var folder = find_resource(user[0].resources);
 				if(folder == null){
-					return res.json({error: "Resource with id '" + req.params.target_folder_id + "' doesn't exist."});
+					return res.json({error: "Resource with id '" + req.params.resource_id + "' doesn't exist."});
 				}
+				/* Push root to beginning of breadcurmbs array. */
+				breadcrumbs.unshift(user[0].resources);
 				
 				/* Check if user is authorized to access resource through sharing. */
 				var found_flag = false;
-				if(typeof folder["sharing"] != 'undefined'){
-					for(var i = 0; i < folder.sharing.length; i++){
-						if(folder.sharing[i]._id == req.client_id)
-							found_flag = true;
+				for(var i = 0; i < breadcrumbs.length; i++){
+					if(typeof breadcrumbs[i]["sharing"] != 'undefined'){
+						for(var j = 0; j < breadcrumbs[i].sharing.length; j++){
+							if(breadcrumbs[i].sharing[j]._id == req.client_id)
+								found_flag = true;
+						}
 					}
 				}
-				
 				
 				if(owner_id != req.client_id && found_flag == false){
 					return res.status(400).json({error: "You don't have access to this resource."});
 				}
 				
-				
 				var payload = {
 						'guid': guid, 'name': name, 'type': type, 'items': items, 'revisions': revisions, 'sharing': sharing, 'activity': activity
-					};
+				};
 				
 				folder.items.push(payload);
 				
@@ -549,34 +562,56 @@ app.delete('/api/users/:owner_id/resources/:resource_id', verify_token, (req, re
 			if(user.length === 0){
 				return res.json({error: "owner_id " + owner_id + " not found."});
 			} else{
-					
-				function find_folder(obj){
+
+				var breadcrumbs = [];
+				
+				function find_resource(obj){
 					var res = null;
-					if(obj.guid == resource_id){
+					/* Is the folder the target. */
+					if(obj.guid == req.params.resource_id){
 						res = obj;
 					} else {
 						for(var i = 0; i < obj.items.length; i++){
-							if(obj.items[i].type == 'folder'){
-								var ret = find_folder(obj.items[i]);
-								if(ret != null) res = ret;
+							/* Is the item the target? */
+							if(obj.items[i].guid == req.params.resource_id){
+								breadcrumbs.unshift(obj.items[i]);
+								res = obj.items[i];
+							}
+							else if(obj.items[i].type == 'folder'){
+								var ret = find_resource(obj.items[i]);
+								if(ret != null) {
+									breadcrumbs.unshift(obj.items[i]);
+									res = ret;
+								}
 							}
 						}
 					}
 					return res;
 				}
-					
-				var folder = find_folder(user[0].resources);
+				
+				var folder = find_resource(user[0].resources);
 				if(folder == null){
-					return res.json({error: "Resource id '" + resource_id + "' is invalid."});
+					return res.json({error: "Resource with id '" + req.params.resource_id + "' doesn't exist."});
+				}
+				/* Push root to beginning of breadcurmbs array. */
+				breadcrumbs.unshift(user[0].resources);
+				
+				/* Check if user is authorized to access resource through sharing. */
+				var found_flag = false;
+				for(var i = 0; i < breadcrumbs.length; i++){
+					if(typeof breadcrumbs[i]["sharing"] != 'undefined'){
+						for(var j = 0; j < breadcrumbs[i].sharing.length; j++){
+							if(breadcrumbs[i].sharing[j]._id == req.client_id)
+								found_flag = true;
+						}
+					}
 				}
 				
-				/* Is user the owner of this resource? */
-				if(owner_id != req.client_id){
-					return res.json({error: "User with id " + req.client_id + " does not have access to this resource."});
+				if(owner_id != req.client_id && found_flag == false){
+					return res.status(400).json({error: "You don't have access to this resource."});
 				}
 				
-				/* TODO - Check if user is authorized to access resource through sharing. */
-				
+				/* Delete the resource from the folder. */
 				for(var i = 0; i < folder.items.length; i++){
 					if(folder.items[i].guid == target_id)
 						folder.items.splice(i, 1);
@@ -610,34 +645,56 @@ app.put('/api/users/:owner_id/resources/:resource_id', verify_token, (req, res) 
 			if(user.length === 0){
 				return res.json({error: "owner_id " + owner_id + " not found."});
 			} else{
-					
-				function find_folder(obj){
+				
+				var breadcrumbs = [];
+				
+				function find_resource(obj){
 					var res = null;
-					if(obj.guid == resource_id){
+					/* Is the folder the target. */
+					if(obj.guid == req.params.resource_id){
 						res = obj;
 					} else {
 						for(var i = 0; i < obj.items.length; i++){
-							if(obj.items[i].type == 'folder'){
-								var ret = find_folder(obj.items[i]);
-								if(ret != null) res = ret;
+							/* Is the item the target? */
+							if(obj.items[i].guid == req.params.resource_id){
+								breadcrumbs.unshift(obj.items[i]);
+								res = obj.items[i];
+							}
+							else if(obj.items[i].type == 'folder'){
+								var ret = find_resource(obj.items[i]);
+								if(ret != null) {
+									breadcrumbs.unshift(obj.items[i]);
+									res = ret;
+								}
 							}
 						}
 					}
 					return res;
 				}
-					
-				var folder = find_folder(user[0].resources);
+				
+				var folder = find_resource(user[0].resources);
 				if(folder == null){
-					return res.json({error: "Resource id '" + resource_id + "' is invalid."});
+					return res.json({error: "Resource with id '" + req.params.resource_id + "' doesn't exist."});
+				}
+				/* Push root to beginning of breadcurmbs array. */
+				breadcrumbs.unshift(user[0].resources);
+				
+				/* Check if user is authorized to access resource through sharing. */
+				var found_flag = false;
+				for(var i = 0; i < breadcrumbs.length; i++){
+					if(typeof breadcrumbs[i]["sharing"] != 'undefined'){
+						for(var j = 0; j < breadcrumbs[i].sharing.length; j++){
+							if(breadcrumbs[i].sharing[j]._id == req.client_id)
+								found_flag = true;
+						}
+					}
 				}
 				
-				/* Is user the owner of this resource? */
-				if(owner_id != req.client_id){
-					return res.json({error: "User with id " + req.client_id + " does not have access to this resource."});
+				if(owner_id != req.client_id && found_flag == false){
+					return res.status(400).json({error: "You don't have access to this resource."});
 				}
 				
-				/* TODO - Check if user is authorized to access resource through sharing. */
-				
+				/* Update the target resource. */
 				for(var i = 0; i < folder.items.length; i++){
 					if(folder.items[i].guid == target.guid)
 						folder.items[i] = target;
@@ -650,32 +707,6 @@ app.put('/api/users/:owner_id/resources/:resource_id', verify_token, (req, res) 
 		});
 	} else {
 		return res.json({error: "owner_id '" + owner_id + "' is invalid."});
-	}
-	
-});
-
-/* Update the resource. */
-app.put('/api/resources/:id', (req, res) => {
-	
-	if(mongoose.Types.ObjectId.isValid(req.params.id)){
-		var id = mongoose.Types.ObjectId(req.params.id);
-		Resources.find({_id: id}, function(err, resource){
-			if(resource.length === 0){
-				return res.json({error: "Resource with id " + req.params.id + " not found."});
-			} else{
-				if(req.body.resource === undefined)
-					return res.json({error: "Please use {resource:{}} in request body."});
-				else {
-					/* TODO - Validate the structure of the JSON revisions array. */
-					Resources.findOneAndUpdate({_id: id}, req.body.resource, {new: true, upsert:true}, function(err, resource){
-						if(err) return res.json({error: err});
-						else return res.json(resource);
-					});
-				}
-			}
-		});
-	} else {
-		return res.json({error: "id '" + req.params.id + "' is invalid."});
 	}
 	
 });
