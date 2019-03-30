@@ -746,8 +746,6 @@
 								xhttp.open("GET", "/api/users");
 								xhttp.send();
 								
-								
-								
 							});
 							
 							/* Generate Modal. */
@@ -807,6 +805,38 @@
 						}
 					};
 					
+					/* View the latest revision. TO DO - VIEW REVISIONS FROM REVISION TABLE */
+					var view = {
+						"view": function(){
+							
+							var guid = this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
+						
+							var folder = latest_folder_json;
+							
+							console.log(guid);
+							
+							console.log(latest_folder_json);
+							
+							
+							
+							/* Check if file has already been converted. */
+							for(var i = 0; i < latest_folder_json.items.length; i++){
+								if(latest_folder_json.items[i].guid == guid){
+									/* Get latest revision. */
+									var preview = latest_folder_json.items[i].revisions[latest_folder_json.items[i].revisions.length -1].preview;
+									if(preview == ""){
+										
+									}
+								}
+							}
+							/* Display it if it has. */
+							
+							/* If it hasn't, make a web request to convert the document. */
+							
+							/* On success, display document. */
+							
+						}
+					};
 					
 					if(resource_type == 'file'){
 						menu_items.push(download_item);
@@ -817,6 +847,7 @@
 							menu_items.push(move_item);
 						}
 						menu_items.push(share);
+						menu_items.push(view);
 					}
 	
 					if(resource_type == 'folder'){
