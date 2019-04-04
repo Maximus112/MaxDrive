@@ -7,10 +7,23 @@ const fs = require('fs');
 const jwt = require('jsonwebtoken');
 const mongo = require('mongodb');
 const uuidv1 = require('uuid/v1');
+const AWS = require('aws-sdk');
+var exec = require('child_process').exec;
+var url = require('url')
 
-mongoose.promise = global.Promise;
+mongoose.promise = global.Promise; 
 
 const app = express();
+
+AWS.config.region = 'eu-west-2'; // Region
+AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+	IdentityPoolId: 'eu-west-2:ece4887c-a2dd-45e8-a766-6e445673b866'
+});
+
+var s3 = new AWS.S3({
+	apiVersion: '2006-03-01',
+	params: {Bucket: 'maxdrive'}
+});
 
 app.use(cors());
 app.use(bodyParser.urlencoded({extended: false}));
@@ -24,17 +37,15 @@ app.use(function(err, req, res, next){
 });
 
 /* Connect to MongoDB Atlas. */
-/*
 fs.readFile('mongouri.txt', 'utf8', function(err, contents){
 	if(err)
 		console.log(err);
 	else
 		mongoose.connect(contents, {useNewUrlParser: true});
 });
-*/
 
 /* Connect to local MongoDB. */
-mongoose.connect('mongodb://localhost:27017/test', {useNewUrlParser: true});
+//mongoose.connect('mongodb://localhost:27017/test', {useNewUrlParser: true});
 
 require('./models/users');
 
@@ -588,7 +599,7 @@ app.delete('/api/users/:owner_id/resources/:resource_id', verify_token, (req, re
 					}
 					return res;
 				}
-				
+			
 				var folder = find_resource(user[0].resources);
 				if(folder == null){
 					return res.json({error: "Resource with id '" + req.params.resource_id + "' doesn't exist."});
@@ -710,5 +721,110 @@ app.put('/api/users/:owner_id/resources/:resource_id', verify_token, (req, res) 
 	}
 	
 });
+
+app.put('/api/users/:owner_id/resources/:resource_id/generate_preview', verify_token, (req, res) => {
+	
+	var owner_id = req.params.owner_id;
+	var resource_id = req.params.resource_id;
+    var target = req.body.target;
+    var index = req.body.revision;    
+
+        if(target === undefined)
+                return res.json({ error: 'target is required.' });
+
+	 /* Check if owner_id is valid. */
+        if(mongoose.Types.ObjectId.isValid(owner_id)){
+                var id = mongoose.Types.ObjectId(owner_id);
+                Users.find({_id: id}, function(err, user){
+                        if(user.length === 0){
+                                return res.json({error: "owner_id " + owner_id + " not found."});
+                        } else{
+
+                                var breadcrumbs = [];
+				
+				/* Find the target resource folder. */
+                                function find_resource(obj){
+                                        var res = null;
+                                        /* Is the folder the target. */
+                                        if(obj.guid == req.params.resource_id){
+                                                res = obj;
+                                        } else {
+                                                for(var i = 0; i < obj.items.length; i++){
+                                                        /* Is the item the target? */
+                                                        if(obj.items[i].guid == req.params.resource_id){
+                                                                breadcrumbs.unshift(obj.items[i]);
+                                                                res = obj.items[i];
+                                                        }
+                                                        else if(obj.items[i].type == 'folder'){
+                                                                var ret = find_resource(obj.items[i]);
+                                                                if(ret != null) {
+                                                                        breadcrumbs.unshift(obj.items[i]);
+                                                                        res = ret;
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                        return res;
+                                }
+
+                                var folder = find_resource(user[0].resources);
+                                if(folder == null){
+                                        return res.json({error: "Resource with id '" + req.params.resource_id + "' doesn't exist."});
+                                }
+                                /* Push root to beginning of breadcurmbs array. */
+                                breadcrumbs.unshift(user[0].resources);
+
+				/* Check if user is authorized to access resource through sharing. */
+                                var found_flag = false;
+                                for(var i = 0; i < breadcrumbs.length; i++){
+                                        if(typeof breadcrumbs[i]["sharing"] != 'undefined'){
+                                                for(var j = 0; j < breadcrumbs[i].sharing.length; j++){
+                                                        if(breadcrumbs[i].sharing[j]._id == req.client_id)
+                                                                found_flag = true;
+                                                }
+                                        }
+                                }
+
+                                if(owner_id != req.client_id && found_flag == false){
+                                        return res.status(400).json({error: "You are not authorized to access to this resource."});
+                                }
+				
+				
+				/* Get revision url. */
+				
+				for(var i = 0; i < folder.items.length; i++){
+					if(folder.items[i].guid == target.guid){
+						folder = folder.items[i];
+					}
+				}  
+
+				//var file = fs.createWriteStream("convert/" + folder.revisions[index].name + '.docx');
+				
+				var cmd = "/home/ec2-user/temp/instdir/program/soffice --headless --convert-to pdf convert/" + folder.revisions[index].guid;
+				
+				download_file_with_wget(folder.revisions[index].download);
+				res.json({})
+			}
+		});
+	}
+});
+
+function download_file_with_wget(file_url, DOWNLOAD_DIR) {
+ 
+ 
+    return new Promise((resolve, reject) => {
+ 
+        DOWNLOAD_DIR = DOWNLOAD_DIR || '.';
+ 
+        // compose the wget command
+        const wget = 'wget -P ' + DOWNLOAD_DIR + ' ' + file_url
+ 
+        // excute wget using child_process' exec function
+        exec(wget, function (err, stdout, stderr) {
+            return err ? reject(err) : resolve(file_url)
+        });
+    })
+ 
+};
 
 app.listen(8000, () => console.log('Server running on http://localhost:8000/'));

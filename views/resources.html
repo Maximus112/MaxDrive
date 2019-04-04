@@ -199,6 +199,38 @@
 			}
 		});
 		
+		/*
+|--------------------------------------------------------------------------
+| CLASS: HttpClient
+|--------------------------------------------------------------------------
+|
+|	Used to make http get requests.
+|
+*/
+var HttpClient = function() {
+	this.get = function(url, success) {
+		var xhttp = new XMLHttpRequest();
+		xhttp.onreadystatechange = function() {
+			if (xhttp.readyState == 4 && xhttp.status == 200)
+				success(this.responseText);
+		}
+		xhttp.open("GET", url);
+		xhttp.send( null );
+	}
+	this.put = function(url, body, success, error){
+		var xhttp = new XMLHttpRequest();
+		xhttp.onreadystatechange = function(){
+			if(this.status == 200 && this.readyState == 4)
+				success(JSON.parse(this.responseText));
+			else if(this.readyState == 4 && this.status != 200)
+				error(JSON.parse(this.responseText));
+		}
+		xhttp.open("PUT", url);
+		xhttp.setRequestHeader("Content-Type", "application/json");
+		xhttp.send(JSON.stringify(body));
+	}
+}
+
 		var resource_table = new datatable({
 			"action_btn": true,
 			"relocate": true,
@@ -249,7 +281,7 @@
 						el.removeChild(el.firstChild);
 					/* Add breadcrumb items to the breadcrumbs. */
 					for(var i = 0; i < _this.items.length; i++){
-						var href = "/api/users/" + "<%- owner._id %>" + "/resources/" + _this.items[i].guid
+						var href = "/api/users/" + "<%- owner._id %>" + "/resources/" + _this.items[i].guid;
 						var breadcrumb = el_factory('li', {class: 'breadcrumb-item', 'data-index': i}, el_factory('a', {href:href}, this.items[i].name));
 						document.getElementById(target + '-breadcrumbs').appendChild(breadcrumb);
 					}
@@ -295,7 +327,7 @@
 						latest_folder_json = JSON.parse(this.responseText);
 						_this.render(JSON.parse(this.responseText));
 					}
-					else{
+					else if(this.readyState == 4 && this.status != 200){
 						console.log(this.responseText);
 					}
 				}
@@ -386,7 +418,7 @@
 								latest_folder_json = JSON.parse(this.responseText);
 								resource_table.render(JSON.parse(this.responseText));
 							}
-							else{
+							else if(this.readyState == 4 && this.status != 200){
 								console.log(this.responseText);
 							}
 						}
@@ -414,7 +446,7 @@
 									latest_folder_json = JSON.parse(this.responseText);
 									resource_table.render(JSON.parse(this.responseText));
 								}
-								else{
+								else if(this.readyState == 4 && this.status != 200){
 									console.log(this.responseText);
 								}
 							}
@@ -577,7 +609,7 @@
 												latest_folder_json = JSON.parse(this.responseText);
 												resource_table.render(JSON.parse(this.responseText));
 											}
-											else{
+											else if(this.readyState == 4 && this.status != 200){
 												console.log(this.responseText);
 											}
 										}
@@ -728,7 +760,7 @@
 												latest_folder_json = JSON.parse(this.responseText);
 												$.notify("Resource shared with " + email + ".", "success");
 											}
-											else{
+											else if(this.readyState == 4 && this.status != 200){
 												console.log(this.responseText);
 											}
 										}
@@ -738,9 +770,9 @@
 										xhttp.send(JSON.stringify({target: folder}));
 
 									}
-									else{
-										console.log(this.responseText);
-									}
+									else if(this.readyState == 4 && this.status != 200){
+											console.log(this.responseText);
+										}
 								}
 								
 								xhttp.open("GET", "/api/users");
@@ -773,7 +805,7 @@
 											latest_folder_json = JSON.parse(this.responseText);
 											$.notify("User removed.", "success");
 										}
-										else{
+										else if(this.readyState == 4 && this.status != 200){
 											console.log(this.responseText);
 										}
 									}
@@ -819,22 +851,25 @@
 							
 							
 							
-							/* Check if file has already been converted. */
+							
 							for(var i = 0; i < latest_folder_json.items.length; i++){
 								if(latest_folder_json.items[i].guid == guid){
 									/* Get latest revision. */
 									var preview = latest_folder_json.items[i].revisions[latest_folder_json.items[i].revisions.length -1].preview;
+									/* If no preview is available. */
 									if(preview == ""){
-										
+										var http_client = new HttpClient();
+										http_client.put("/api/users/" + "<%- owner._id %>" + "/resources/" + guid + '/generate_preview', {target: latest_folder_json.items[i], revision: latest_folder_json.items[i].revisions.length -1}, function(res){
+											console.log(res);
+											//latest_folder_json = res.folder;
+											//window.open("pdfjs/web/viewer.html?file=" + res.preview, '_blank');
+										});
+									} else {
+										/* Display the preview. */
+										window.open("pdfjs/web/viewer.html?file=" + preview, '_blank');
 									}
 								}
 							}
-							/* Display it if it has. */
-							
-							/* If it hasn't, make a web request to convert the document. */
-							
-							/* On success, display document. */
-							
 						}
 					};
 					
@@ -966,7 +1001,12 @@
 										$.notify(err.message, "error");
 										ret = -1;
 									}
-									
+
+									var preview = "";
+									if(params.Body.type == "application/pdf"){
+										preview = res.Location;
+									}
+										
 									var payload = {
 											"type": 'file',
 											"guid": guid,
@@ -980,7 +1020,7 @@
 													"download": res.Location,
 													"modified": params.Body.lastModifiedDate,
 													"date": Date.now(),
-													"preview":"",
+													"preview": preview,
 													"comments":"First revision."
 												}
 											]
@@ -994,7 +1034,7 @@
 											latest_folder_json = JSON.parse(this.responseText);
 											resource_table.render(JSON.parse(this.responseText));
 										}
-										else{
+										else if(this.readyState == 4 && this.status != 200){
 											console.log(this.responseText);
 										}
 									}
@@ -1021,9 +1061,9 @@
 										latest_folder_json = JSON.parse(this.responseText);
 										resource_table.render(JSON.parse(this.responseText));
 									}
-									else{
-										console.log(this.responseText);
-									}
+									else if(this.readyState == 4 && this.status != 200){
+											console.log(this.responseText);
+										}
 								}
 								xhttp.open("POST", '/api/users/' +  "<%= owner._id %>" +'/resources', true);
 								xhttp.setRequestHeader('Content-Type', 'application/json');
@@ -1188,9 +1228,9 @@
 										
 										return $.notify(original.name + " moved.", "success");
 									}
-									else{
-										console.log(this.responseText);
-									}
+									else if(this.readyState == 4 && this.status != 200){
+											console.log(this.responseText);
+										}
 								};
 								xhttp.open("POST", '/api/users/' + "<%- owner._id %>" + '/resources', true);
 								xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
@@ -1200,9 +1240,9 @@
 								
 								xhttp.send(JSON.stringify(original));
 							}
-							else{
-								console.log(this.responseText);
-							}
+							else if(this.readyState == 4 && this.status != 200){
+											console.log(this.responseText);
+										}
 						};
 						var folder = <%- folder %>;
 						xhttp.open("DELETE", '/api/users/' + "<%- owner._id %>" + '/resources/' + folder.guid, true);
