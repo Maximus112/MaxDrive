@@ -37,7 +37,7 @@ app.use(function(err, req, res, next){
 });
 
 /* Connect to MongoDB Atlas. */
-fs.readFile('mongouri.txt', 'utf8', function(err, contents){
+fs.readFile(__dirname + '/mongouri.txt', 'utf8', function(err, contents){
 	if(err)
 		console.log(err);
 	else
@@ -54,15 +54,16 @@ const Users = mongoose.model('Users');
 app.use(cookieParser());
 
 app.get('/',function(req,res) {
-	res.render('landing.html', {name:'max'});
+	//res.render('landing.html', {});
+	res.redirect('/login');
 });
 
 app.get('/register',function(req,res) {
-	res.render('register.html', {name:'max'});
+	res.render('register.html');
 });
 
 app.get('/login',function(req,res) {
-	res.render('login.html', {name:'max'});
+	res.render('login.html');
 });  
 
 /* Handle route to the users root folder. */
@@ -75,28 +76,39 @@ app.get('/gateway', verify_token, function(req,res) {
 }); 
 
 app.get('/logout',function(req,res) {
-	res.render('login.html', {name:'max'});
+	res.render('login.html');
 });
 
+/* Middleware function that verifies the authenticity of a JWT cookie. */
 function verify_token(req, res, next){
+	/* Get cookie. */
 	var token = req.cookies['jwt'];
 	if (!token)
 		return res.redirect('/login');
-	jwt.verify(token, 'secret', function(err, decoded) {
+	jwt.verify(token, 'Shhh!', function(err, decoded) {
 		if (err) res.redirect('/login');
-		//if everything good, save to request for use in other routes
+		/* If JWT is valid, save _id to request for use in other routes. */
 		req.client_id = decoded._id;
 		return next();
 	});
 }
 
+function verify_admin(req, res, next){
+
+	/* Get cookie. */
+	var token = req.cookies['admin'];
+	if (token != "super_secret_password")
+		return res.status(400).json({error: 'You are not server admin.'});
+	return next();
+}
+
 /* Retrieves all users. */
-app.get('/api/users', (req, res, next) => {
+app.get('/api/users', verify_admin, (req, res, next) => {
 	return Users.find({}).select('_id email').then((users) =>{
 		if(users.length === 0)
-			return res.status(422).sendStatus(400);
+			return res.sendStatus(400);
 		
-		return res.json(users); 
+		return res.json(users);   
 	});
 });
 
@@ -143,7 +155,7 @@ app.post('/api/users', (req, res, err) => {
 			finalUser.set_password(req.body.password);
 			/* Return token. */
 			finalUser.save();
-			return res.cookie('jwt', finalUser.generate_jwt()).json({success: 'Registration complete.'});
+			return res.cookie('jwt', finalUser.generate_jwt()).json({success: 'Registration complete.', _id: finalUser._id});
 		
 		}
 	});
@@ -178,10 +190,10 @@ app.post('/api/login', (req, res, err) => {
 			return res.cookie('jwt', user.generate_jwt()).json({success: 'Registration complete.'});
 		}
 	});
-	
+
 });
 
-app.get('/api/users/:id', (req, res) => {
+app.get('/api/users/:id', verify_admin, (req, res) => {
 	
 	if(mongoose.Types.ObjectId.isValid(req.params.id)){
 		var id = mongoose.Types.ObjectId(req.params.id);
@@ -198,7 +210,7 @@ app.get('/api/users/:id', (req, res) => {
 	
 });
 
-app.put('/api/users/:id', (req, res) => {
+app.put('/api/users/:id', verify_admin, (req, res) => {
 	
 	if(mongoose.Types.ObjectId.isValid(req.params.id)){
 		var id = mongoose.Types.ObjectId(req.params.id);
@@ -230,7 +242,7 @@ app.put('/api/users/:id', (req, res) => {
 	
 });
 
-app.delete('/api/users/:id', (req, res) => {
+app.delete('/api/users/:id', verify_admin, (req, res) => {
 	
 	if(mongoose.Types.ObjectId.isValid(req.params.id)){
 		var id = mongoose.Types.ObjectId(req.params.id);
@@ -359,7 +371,6 @@ app.get('/api/users/:owner_id/treeview/:omit_id', verify_token, function(req,res
 			} else{
 				
 				var flat = [];
-				
 				
 				/* Generates ordered array of folders. */
 				function convert_to_flat(obj, parent_id){
@@ -828,3 +839,5 @@ function download_file_with_wget(file_url, DOWNLOAD_DIR) {
 };
 
 app.listen(8000, () => console.log('Server running on http://localhost:8000/'));
+
+module.exports = app;

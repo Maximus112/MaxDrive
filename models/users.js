@@ -31,7 +31,7 @@ users_schema.methods.validate_password = function(password){
 
 /* Generate a JSON web token for the user. */
 users_schema.methods.generate_jwt = function(){
-	return (jwt.sign( { _id: this._id }, 'secret', { expiresIn: 3600 } ));
+	return (jwt.sign( { _id: this._id }, 'Shhh!', { expiresIn: 3600 } ));
 }
 
 users_schema.methods.to_auth_json = function(){
@@ -42,4 +42,4 @@ users_schema.methods.to_auth_json = function(){
 	};
 }
 
-mongoose.model('Users', users_schema, 'users');
+module.exports = mongoose.model('Users', users_schema, 'users');

@@ -224,7 +224,7 @@ var HttpClient = function() {
 				success(JSON.parse(this.responseText));
 			else if(this.readyState == 4 && this.status != 200)
 				error(JSON.parse(this.responseText));
-		}
+		} 
 		xhttp.open("PUT", url);
 		xhttp.setRequestHeader("Content-Type", "application/json");
 		xhttp.send(JSON.stringify(body));
@@ -683,7 +683,7 @@ var HttpClient = function() {
 						
 							var folder = latest_folder_json;
 							
-							/* Has the target folder been reached? */
+							/* Has the target resource been reached? */
 							for(var i = 0; i < folder.items.length; i++){
 								if(folder.items[i].guid == guid){
 									folder = folder.items[i];
@@ -1025,7 +1025,6 @@ var HttpClient = function() {
 												}
 											]
 										};
-									
 									
 									var xhttp = new XMLHttpRequest();
 									xhttp.onreadystatechange = function() {
