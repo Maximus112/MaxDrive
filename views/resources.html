@@ -459,25 +459,55 @@ var http_client = new HttpClient();
 					
 					var download_item = {"download": function(){
 						
+						/* The resource id - not to be confused with s3 id's. */
 						var guid = this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
 						
-						var download_link = null;
+						var latest_revision_s3_id = null;
 						for(var i = 0; i < latest_folder_json.items.length; i++){
 							if(latest_folder_json.items[i].guid == guid){
-								download_link = latest_folder_json.items[i].revisions[latest_folder_json.items[i].revisions.length -1].download;
+								latest_revision_s3_id = latest_folder_json.items[i].revisions[latest_folder_json.items[i].revisions.length -1].guid;
 							}
 						}
 						
-						function downloadURI(uri) {
-							var link = document.createElement("a");
-							link.href = uri;
-							document.body.appendChild(link);
+						var s3_key = "<%- owner._id %>/" + latest_revision_s3_id;
+
+
+						http_client.post('/api/download_file', {key: s3_key}, function(res){
+
+							
+							var url = JSON.parse(res).url;
+
+							http_client.get(url, function(res){
+								console.log(res)
+							}, function(err){
+								console.log(err)
+							})
+
+							console.log(url);
+
+							window.open("pdfjs/web/viewer.html?file=" + JSON.parse(res).url, '_blank');
+
+							/*
+							res = JSON.parse(res);
+							console.log(res.data.Body);
+
+							var url = window.URL.createObjectURL(new Blob(res.data.Body.data, {type: 'application/pdf'}));
+				
+							console.log(url);
+							
+							let link=document.createElement('a');
+							link.href=url
+							link.download = res.filename;
 							link.click();
-							document.body.removeChild(link);
-							delete link;
-						}
-						
-						downloadURI(download_link);
+							
+							*/
+				
+
+						}, function(err){
+							console.log(err);
+						});
+
+					
 
 					}};
 					
@@ -621,23 +651,28 @@ var http_client = new HttpClient();
 					var download_revision = {
 						"download": function(){
 							
+
 							var guid = this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
 							
 							var folder = latest_folder_json;
 							var url = null;
 
-							/* Find revision */
+			
 							for(var i = 0; i < folder.items.length; i++){
 								if(folder.items[i].type == 'file'){
 									console.log(folder.items[i].revisions);
 									for(var j = 0; j < folder.items[i].revisions.length; j++){
 										if(folder.items[i].revisions[j].guid == guid){
-											url = folder.items[i].revisions[j].download;
+											url = folder.items[i].revisions[j];
 										}
 									}
 								}
 							}
 
+							console.log(url);
+
+						
+								/*
 							function downloadURI(uri) {
 							  var link = document.createElement("a");
 							  link.href = uri;
@@ -648,7 +683,7 @@ var http_client = new HttpClient();
 							}
 							
 							downloadURI(url);
-		
+							*/
 						}
 					};
 					
@@ -1239,10 +1274,7 @@ var http_client = new HttpClient();
 						var elem = document.querySelector('#move_modal');
 						elem.parentNode.removeChild(elem);
 					  })
-					
-					
-	
-			
+
 		}
 		
 		

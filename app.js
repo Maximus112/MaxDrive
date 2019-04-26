@@ -15,6 +15,8 @@ mongoose.promise = global.Promise;
 
 const app = express();
 
+AWS.config.loadFromPath('./config.json');
+
 app.use(cors());
 app.use(bodyParser.urlencoded({extended: false}));
 app.use(bodyParser.json());
@@ -845,9 +847,50 @@ app.get('/api/s3_token', verify_token, (req, res) => {
 
 });
 
-function generate_s3_token(user_id){
+app.post('/api/download_file', verify_token, (req, res) => {
+	
+	
+	
+	var key = req.body.key;
+	var s3 = new AWS.S3();
 
-	AWS.config.loadFromPath('./config.json');
+
+const url = s3.getSignedUrl('getObject', {
+ Bucket: 'maxdrive',
+ Key: key,
+ Expires: 1800
+})
+
+res.json({url:url});
+
+	/*
+	var params = {
+		Bucket: "maxdrive",
+		Key: key
+	   };
+	   s3.getObject(params, function(err, data) {
+		 if (err) console.log(err, err.stack); // an error occurred
+		 else     console.log(data);           // successful response
+		 //res.send(data);
+
+		 
+		let objectData = data.Body.toString('utf-8'); // Use the encoding necessary
+		
+		var arr = data.ContentDisposition.split(';');
+		var filename = null;
+		for(var i = 0; i < arr.length; i++){
+			if(arr[i].includes('filename')){
+				filename = arr[i].split('filename=')[1];
+			}
+		}
+		res.json({filename: filename, ContentType: data.ContentType, data: data});
+		
+	   });
+	*/
+
+});
+
+function generate_s3_token(user_id){
 
 	const sts = new AWS.STS();
    
