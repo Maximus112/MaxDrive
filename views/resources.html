@@ -140,16 +140,6 @@
 		
 		var latest_folder_json = {};
 		
-		AWS.config.region = 'eu-west-2'; // Region
-		AWS.config.credentials = new AWS.CognitoIdentityCredentials({
-			IdentityPoolId: 'eu-west-2:ece4887c-a2dd-45e8-a766-6e445673b866',
-		});
-
-		var s3 = new AWS.S3({
-		  apiVersion: '2006-03-01',
-		  params: {Bucket: 'maxdrive'}
-		});
-		
 		var side_nav_open = true;
 		
 		const el_factory = (type, attributes, ...children) => {
@@ -217,19 +207,33 @@ var HttpClient = function() {
 		xhttp.open("GET", url);
 		xhttp.send( null );
 	}
-	this.put = function(url, body, success, error){
+	this.post = function(url, body, success, error){
 		var xhttp = new XMLHttpRequest();
 		xhttp.onreadystatechange = function(){
 			if(this.status == 200 && this.readyState == 4)
-				success(JSON.parse(this.responseText));
+				success(this.responseText);
 			else if(this.readyState == 4 && this.status != 200)
-				error(JSON.parse(this.responseText));
+				error(this.responseText);
+		}
+		xhttp.open("POST", url);
+		xhttp.setRequestHeader("Content-Type", "application/json");
+		xhttp.send(JSON.stringify(body));
+	}
+		this.put = function(url, body, success, error){
+		var xhttp = new XMLHttpRequest();
+		xhttp.onreadystatechange = function(){
+			if(this.status == 200 && this.readyState == 4)
+				success(this.responseText);
+			else if(this.readyState == 4 && this.status != 200)
+				error(this.responseText);
 		} 
 		xhttp.open("PUT", url);
 		xhttp.setRequestHeader("Content-Type", "application/json");
 		xhttp.send(JSON.stringify(body));
 	}
 }
+
+var http_client = new HttpClient();
 
 		var resource_table = new datatable({
 			"action_btn": true,
@@ -316,27 +320,6 @@ var HttpClient = function() {
 							_this.add_row([resource.items[i].name, resource.items[i].type, "TBC", "TBC"], i, resource.items[i].guid);
 					}
 				}
-			}
-			
-			/* Get the latest datatable JSON and render. */
-			this.update = function(){
-				var _this = this;			
-				var xhttp = new XMLHttpRequest();
-				xhttp.onreadystatechange = function(){
-					if(this.readyState == 4 && this.status == 200){
-						latest_folder_json = JSON.parse(this.responseText);
-						_this.render(JSON.parse(this.responseText));
-					}
-					else if(this.readyState == 4 && this.status != 200){
-						console.log(this.responseText);
-					}
-				}
-				var folder = <%- folder %>;
-				console.log();
-				var url = "/api/users/" + "<%- owner._id %>" + "/" + this.this_breadcrumbs.items[this.this_breadcrumbs.items.length -1].guid + '/false';
-				console.log(url);
-				xhttp.open("GET", url);
-				xhttp.send();
 			}
 			
 			/* Need to check for resource type for action menu. */
@@ -563,75 +546,75 @@ var HttpClient = function() {
 						"update": function(){
 							
 							var _this = this;
-						
-							/* Open file dialog. */
-							var file = el_factory('input', {type: 'file'});
-							file.addEventListener('change', function(){
-							
-								/* Upload to AWS. */
-								var file = this.files[0];
 
-								/* Upload to AWS. */
-								if (file) {
-									/* Generate GUID for file name. */
-									var guid = uuidv4();
-									var objKey = "<%- owner._id %>" + '/' + guid;
-									var params = {
-										Key: objKey,
-										ContentType: file.type,
-										Body: file,
-										ACL: 'public-read',
-										ContentDisposition: "attachment; filename=" + file.name
-									};
+							var http_client = new HttpClient();
+
+							http_client.get('/api/s3_token', function(data){
+								
+									AWS.config.update(JSON.parse(data));
+		
+									var s3 = new AWS.S3();
+
+									/* Open file dialog. */
+									var file = el_factory('input', {type: 'file'});
+									file.addEventListener('change', function(){
 									
-									s3.upload(params, function(err, res) {
-										if (err) {
-											$.notify(err.message, "error");
-											ret = -1;
+										/* Upload to AWS. */
+										var file = this.files[0];
+
+										/* Upload to AWS. */
+										if (file) {
+											/* Generate GUID for file name. */
+											var guid = uuidv4();
+											var objKey = "<%- owner._id %>" + '/' + guid;
+											var params = {
+												Bucket: 'maxdrive',
+												Key: objKey,
+												ContentType: file.type,
+												Body: file,
+												ContentDisposition: "attachment; filename=" + file.name
+											};
+											
+											s3.upload(params, function(err, res) {
+												if (err) {
+													$.notify(err.message, "error");
+													ret = -1;
+												}
+												
+												var revision = {
+													"guid": guid,
+													"name": params.Body.name,
+													"extension": params.Body.type,
+													"size": params.Body.size,
+													"download": res.Location,
+													"modified": params.Body.lastModifiedDate,
+													"date": Date.now(),
+													"preview":""
+												};
+												
+												var resource_id = _this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
+												var folder = latest_folder_json;
+												var target = null;
+												for(var i = 0; i < folder.items.length; i++){
+													if(folder.items[i].guid == resource_id){
+														target = folder.items[i];
+													}
+												}
+												target.revisions.push(revision);
+
+												http_client.put("/api/users/" + "<%- owner._id %>" + "/resources/" + folder.guid, {target: target}, function(res){
+													$.notify("Revision added.", "success");
+														latest_folder_json = JSON.parse(res);
+														resource_table.render(JSON.parse(res));
+												}, function(err){
+													console.log(err);
+												});
+											});
 										}
-										
-										var revision = {
-											"guid": guid,
-											"name": params.Body.name,
-											"extension": params.Body.type,
-											"size": params.Body.size,
-											"download": res.Location,
-											"modified": params.Body.lastModifiedDate,
-											"date": Date.now(),
-											"preview":""
-										};
-										
-										var resource_id = _this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
-										var xhttp = new XMLHttpRequest();
-										xhttp.onreadystatechange = function(){
-											if(this.status == 200 && this.readyState == 4){
-												$.notify("Revision added.", "success");
-												latest_folder_json = JSON.parse(this.responseText);
-												resource_table.render(JSON.parse(this.responseText));
-											}
-											else if(this.readyState == 4 && this.status != 200){
-												console.log(this.responseText);
-											}
-										}
-										var folder = latest_folder_json;
-										
-										var target = null;
-										for(var i = 0; i < folder.items.length; i++){
-											if(folder.items[i].guid == resource_id){
-												target = folder.items[i];
-											}
-										}
-										
-										target.revisions.push(revision);
-										
-										xhttp.open("PUT", "/api/users/" + "<%- owner._id %>" + "/resources/" + folder.guid);
-										xhttp.setRequestHeader("Content-Type", "application/json");
-										xhttp.send(JSON.stringify({target: target}));
-										
-									});
-								}
-							})
-							file.click();
+									})
+									file.click();
+
+							});
 						}
 					};
 					
@@ -976,32 +959,37 @@ var HttpClient = function() {
 					dt_row.appendChild(this.generate_action_btn("action-btn", [
 					{"Upload file": function(){
 						
-						/* Open file dialog. */
-						var file = el_factory('input', {type: 'file'});
-						file.addEventListener('change', function(){
 						
-							/* Upload to AWS. */
+
+						http_client.get('/api/s3_token', function(data){
+								
+							AWS.config.update(JSON.parse(data));
+
+							var s3 = new AWS.S3();
+
+							var file = el_factory('input', {type: 'file'});
+							file.addEventListener('change', function(){
+						
 							var file = this.files[0];
 
-							/* Upload to AWS. */
 							if (file) {
-								/* Generate GUID for file name. */
+						
 								guid = uuidv4();
 								var objKey = "<%= owner._id %>" + '/' + guid;
 								var params = {
+									Bucket: 'maxdrive',
 									Key: objKey,
 									ContentType: file.type,
 									Body: file,
-									ACL: 'public-read',
 									ContentDisposition: "attachment; filename=" + file.name
 								};
 								
 								s3.upload(params, function(err, res) {
 									if (err) {
-										$.notify(err.message, "error");
-										ret = -1;
+										console.log(err);
+										return $.notify(err.message, "error");
 									}
-
+									console.log({res: res});
 									var preview = "";
 									if(params.Body.type == "application/pdf"){
 										preview = res.Location;
@@ -1025,50 +1013,42 @@ var HttpClient = function() {
 												}
 											]
 										};
-									
-									var xhttp = new XMLHttpRequest();
-									xhttp.onreadystatechange = function() {
-										if (this.readyState == 4 && this.status == 200) {
-											$.notify(params.Body.name + " added.", "success");
-											latest_folder_json = JSON.parse(this.responseText);
-											resource_table.render(JSON.parse(this.responseText));
-										}
-										else if(this.readyState == 4 && this.status != 200){
-											console.log(this.responseText);
-										}
-									}
-									xhttp.open("POST", '/api/users/' +  "<%= owner._id %>" +'/resources', true);
-									xhttp.setRequestHeader('Content-Type', 'application/json');
+								
 									var folder = <%- folder %>;
 									payload["target_folder_id"] = folder.guid;
-									xhttp.send(JSON.stringify(payload)); 
+
+									http_client.post('/api/users/' +  "<%= owner._id %>" +'/resources', payload, function(res){
+										$.notify(params.Body.name + " added.", "success");
+										latest_folder_json = JSON.parse(res);
+										resource_table.render(JSON.parse(res));
+									}, function(err){
+										console.log(err);
+									});
 
 								});
 							}
 						})
 						file.click();
+	
+						});
+						
+						
 					}},
 					{"New Folder": function(){ 
 						var _this = this;
 						generate_text_modal('Folder', 'Enter your folder name', false, 'Create', 
 							function(args){
-								
-								var xhttp = new XMLHttpRequest();
-								xhttp.onreadystatechange = function() {
-									if (this.readyState == 4 && this.status == 200) {
-										$.notify(args.INPUT + " created.", "success");
-										latest_folder_json = JSON.parse(this.responseText);
-										resource_table.render(JSON.parse(this.responseText));
-									}
-									else if(this.readyState == 4 && this.status != 200){
-											console.log(this.responseText);
-										}
-								}
-								xhttp.open("POST", '/api/users/' +  "<%= owner._id %>" +'/resources', true);
-								xhttp.setRequestHeader('Content-Type', 'application/json');
+
 								var folder = <%- folder %>;
-								xhttp.send(JSON.stringify({owner_id: "<%= owner._id %>", target_folder_id: folder.guid, type: "folder", name: args.INPUT})); 
-							
+								var payload = {owner_id: "<%= owner._id %>", target_folder_id: folder.guid, type: "folder", name: args.INPUT};
+								http_client.post('/api/users/' +  "<%= owner._id %>" +'/resources', payload, function(res){
+									$.notify(args.INPUT + " created.", "success");
+									latest_folder_json = JSON.parse(res);
+									resource_table.render(JSON.parse(res));
+								}, function(err){
+									console.log(err);
+								});
+
 							},{});
 					}}
 						]));

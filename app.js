@@ -15,16 +15,6 @@ mongoose.promise = global.Promise;
 
 const app = express();
 
-AWS.config.region = 'eu-west-2'; // Region
-AWS.config.credentials = new AWS.CognitoIdentityCredentials({
-	IdentityPoolId: 'eu-west-2:ece4887c-a2dd-45e8-a766-6e445673b866'
-});
-
-var s3 = new AWS.S3({
-	apiVersion: '2006-03-01',
-	params: {Bucket: 'maxdrive'}
-});
-
 app.use(cors());
 app.use(bodyParser.urlencoded({extended: false}));
 app.use(bodyParser.json());
@@ -837,6 +827,61 @@ function download_file_with_wget(file_url, DOWNLOAD_DIR) {
     })
  
 };
+
+app.get('/api/s3_token', verify_token, (req, res) => {
+
+		generate_s3_token(req.client_id)
+		.then(function(result){
+			res.json({ 
+				accessKeyId: result.Credentials.AccessKeyId,
+				secretAccessKey: result.Credentials.SecretAccessKey,
+				sessionToken: result.Credentials.SessionToken,
+				region: "eu-west-2" 
+			});
+		})
+		.catch(function(err){
+			res.json(err);
+		});
+
+});
+
+function generate_s3_token(user_id){
+
+	AWS.config.loadFromPath('./config.json');
+
+	const sts = new AWS.STS();
+   
+	const policy = 
+	{
+		"Version": "2012-10-17",
+		"Statement": [
+			{
+				"Effect": "Allow",
+				"Action": "*",
+				"Resource": [
+					"arn:aws:s3:::maxdrive/" + user_id,
+					"arn:aws:s3:::maxdrive/" + user_id + "/*"
+				]
+			}
+		]
+	};
+
+	const role = {
+		DurationSeconds: 1800,
+		Name: "STS",
+		Policy: JSON.stringify(policy)
+	}
+
+	return new Promise(function(resolve, reject){
+
+		sts.getFederationToken(role, (err, data) => {
+			if(err) reject(err);
+			else resolve(data)
+		});
+
+	})
+
+}
 
 app.listen(8000, () => console.log('Server running on http://localhost:8000/'));
 
