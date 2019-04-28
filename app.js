@@ -36,9 +36,6 @@ fs.readFile(__dirname + '/mongouri.txt', 'utf8', function(err, contents){
 		mongoose.connect(contents, {useNewUrlParser: true});
 });
 
-/* Connect to local MongoDB. */
-//mongoose.connect('mongodb://localhost:27017/test', {useNewUrlParser: true});
-
 require('./models/users');
 
 const Users = mongoose.model('Users');
@@ -725,12 +722,14 @@ app.put('/api/users/:owner_id/resources/:resource_id', verify_token, (req, res) 
 	
 });
 
+/* Convert a file revision to PDF using Libre Office. */
 app.put('/api/users/:owner_id/resources/:resource_id/generate_preview', verify_token, (req, res) => {
 	
 	var owner_id = req.params.owner_id;
 	var resource_id = req.params.resource_id;
     var target = req.body.target;
-    var index = req.body.revision;    
+	var index = req.body.index;    
+	var new_guid = req.body.new_guid;
 
         if(target === undefined)
                 return res.json({ error: 'target is required.' });
@@ -745,39 +744,39 @@ app.put('/api/users/:owner_id/resources/:resource_id/generate_preview', verify_t
 
                                 var breadcrumbs = [];
 				
-				/* Find the target resource folder. */
-                                function find_resource(obj){
-                                        var res = null;
-                                        /* Is the folder the target. */
-                                        if(obj.guid == req.params.resource_id){
-                                                res = obj;
-                                        } else {
-                                                for(var i = 0; i < obj.items.length; i++){
-                                                        /* Is the item the target? */
-                                                        if(obj.items[i].guid == req.params.resource_id){
-                                                                breadcrumbs.unshift(obj.items[i]);
-                                                                res = obj.items[i];
-                                                        }
-                                                        else if(obj.items[i].type == 'folder'){
-                                                                var ret = find_resource(obj.items[i]);
-                                                                if(ret != null) {
-                                                                        breadcrumbs.unshift(obj.items[i]);
-                                                                        res = ret;
-                                                                }
-                                                        }
-                                                }
-                                        }
-                                        return res;
-                                }
+							/* Find the target resource folder. */
+							function find_resource(obj){
+									var res = null;
+									/* Is the folder the target. */
+									if(obj.guid == resource_id){
+											res = obj;
+									} else {
+											for(var i = 0; i < obj.items.length; i++){
+													/* Is the item the target? */
+													if(obj.items[i].guid == resource_id){
+															breadcrumbs.unshift(obj.items[i]);
+															res = obj.items[i];
+													}
+													else if(obj.items[i].type == 'folder'){
+															var ret = find_resource(obj.items[i]);
+															if(ret != null) {
+																	breadcrumbs.unshift(obj.items[i]);
+																	res = ret;
+															}
+													}
+											}
+									}
+									return res;
+								}
 
-                                var folder = find_resource(user[0].resources);
-                                if(folder == null){
+                                var resource = find_resource(user[0].resources);
+                                if(resource == null){
                                         return res.json({error: "Resource with id '" + req.params.resource_id + "' doesn't exist."});
                                 }
                                 /* Push root to beginning of breadcurmbs array. */
                                 breadcrumbs.unshift(user[0].resources);
 
-				/* Check if user is authorized to access resource through sharing. */
+								/* Check if user is authorized to access resource through sharing. */
                                 var found_flag = false;
                                 for(var i = 0; i < breadcrumbs.length; i++){
                                         if(typeof breadcrumbs[i]["sharing"] != 'undefined'){
@@ -789,46 +788,91 @@ app.put('/api/users/:owner_id/resources/:resource_id/generate_preview', verify_t
                                 }
 
                                 if(owner_id != req.client_id && found_flag == false){
-                                        return res.status(400).json({error: "You are not authorized to access to this resource."});
+                                        return res.status(400).json({error: "You are not authorized to access this resource."});
                                 }
 				
-				
-				/* Get revision url. */
-				
-				for(var i = 0; i < folder.items.length; i++){
-					if(folder.items[i].guid == target.guid){
-						folder = folder.items[i];
-					}
-				}  
+								var s3_id = target.revisions[index].guid;
+								var s3_key = owner_id + '/' + s3_id;
+								
+					
+								var s3 = new AWS.S3();
+								
+								var params = {
+									Bucket    : 'maxdrive',
+									Key    : s3_key,
+								};
+							
+								s3.getObject(params, function(err, data){
+									if (err){
+										res.status(400).json({message: err});
+										return console.log(err);
+									}
+									var original_file_path = "/home/ec2-user/convert/" + s3_id; 
+									fs.writeFile(original_file_path, data.Body, (err) => {
+										if (err){
+											res.status(400).json({message: err});
+											return console.log(err);
+										} 
+										console.log("Successfully downloaded file to " + original_file_path);
 
-				//var file = fs.createWriteStream("convert/" + folder.revisions[index].name + '.docx');
-				
-				var cmd = "/home/ec2-user/temp/instdir/program/soffice --headless --convert-to pdf convert/" + folder.revisions[index].guid;
-				
-				download_file_with_wget(folder.revisions[index].download);
-				res.json({})
+										
+										var cmd = "/home/ec2-user/temp/instdir/program/soffice --headless --convert-to pdf " + original_file_path + " --outdir /home/ec2-user/convert";
+										require('child_process').execSync(cmd).toString();
+										console.log("File conversion to " + original_file_path + ".pdf complete.");
+
+										/* Delete original. */
+										fs.unlinkSync(original_file_path);
+
+										/* Upload to s3. */
+											fs.readFile('/home/ec2-user/convert/' + s3_id + '.pdf', function (err, data){
+												if (err){
+													res.status(400).json({message: err});
+													return console.log(err);
+												}
+												
+												var objKey = owner_id + '/' + new_guid;
+												var params = {
+													Bucket: 'maxdrive',
+													Key: objKey,
+													ContentType: 'application/pdf',
+													Body: data,
+													ContentDisposition: "attachment; filename=" + new_guid
+												};
+												
+												s3.upload(params, function(err, data) {
+													if (err){
+														res.status(400).json({message: err});
+														return console.log(err);
+													} 
+										
+													/* Add preview to user. */
+													console.log('Successfully uploaded ' + objKey + 'to S3.');
+													
+													/* Delete converted file. */
+													fs.unlinkSync(original_file_path + '.pdf');
+
+													/* Set preview property. */
+													for(var i = 0; i < resource.items.length; i++){
+														if(resource.items[i].guid == target.guid){
+															resource.items[i].revisions[index].preview = new_guid;
+															break;
+														}
+													}
+
+												
+													const finalUser = new Users(user[0]);
+													return finalUser.save().then(()=> res.json({data: resource, key: new_guid}));
+													
+												});
+											})
+										
+										
+									});
+								});	
 			}
 		});
 	}
 });
-
-function download_file_with_wget(file_url, DOWNLOAD_DIR) {
- 
- 
-    return new Promise((resolve, reject) => {
- 
-        DOWNLOAD_DIR = DOWNLOAD_DIR || '.';
- 
-        // compose the wget command
-        const wget = 'wget -P ' + DOWNLOAD_DIR + ' ' + file_url
- 
-        // excute wget using child_process' exec function
-        exec(wget, function (err, stdout, stderr) {
-            return err ? reject(err) : resolve(file_url)
-        });
-    })
- 
-};
 
 app.get('/api/s3_token', verify_token, (req, res) => {
 
@@ -848,45 +892,130 @@ app.get('/api/s3_token', verify_token, (req, res) => {
 });
 
 app.post('/api/download_file', verify_token, (req, res) => {
-	
-	
-	
+		
 	var key = req.body.key;
 	var s3 = new AWS.S3();
 
+	const url = s3.getSignedUrl('getObject', {
+	Bucket: 'maxdrive',
+	Key: key,
+	Expires: 1800
+	})
 
-const url = s3.getSignedUrl('getObject', {
- Bucket: 'maxdrive',
- Key: key,
- Expires: 1800
-})
+	//res.json({ url : encodeURIComponent(url) });
+	res.json({ url : url });
+});
 
-res.json({url:url});
+app.put('/api/users/:owner_id/resources/:resource_id/share', verify_token, (req, res) => {
 
-	/*
-	var params = {
-		Bucket: "maxdrive",
-		Key: key
-	   };
-	   s3.getObject(params, function(err, data) {
-		 if (err) console.log(err, err.stack); // an error occurred
-		 else     console.log(data);           // successful response
-		 //res.send(data);
+	var owner_id = req.params.owner_id;
+	var resource_id = req.params.resource_id;
+	var target_id = req.body.target_id;
+	var email = req.body.email;
 
-		 
-		let objectData = data.Body.toString('utf-8'); // Use the encoding necessary
-		
-		var arr = data.ContentDisposition.split(';');
-		var filename = null;
-		for(var i = 0; i < arr.length; i++){
-			if(arr[i].includes('filename')){
-				filename = arr[i].split('filename=')[1];
-			}
-		}
-		res.json({filename: filename, ContentType: data.ContentType, data: data});
-		
-	   });
-	*/
+	if(email === undefined)
+		return res.json({ message: 'email is required.' });
+
+	/* Check if owner_id is valid. */
+	if(mongoose.Types.ObjectId.isValid(owner_id)){
+		var id = mongoose.Types.ObjectId(owner_id);
+		Users.find({_id: id}, function(err, user){
+			if(user.length === 0){
+				return res.json({error: "owner_id " + owner_id + " not found."});
+			} else{
+	
+				/* Check if user with email owns resource. */
+				if(user[0].email == email){
+					return res.status(400).json({message: "Cannot be shared with the resource owner."});
+				}
+
+				var breadcrumbs = [];
+				
+				function find_resource(obj){
+					var res = null;
+					/* Is the folder the target. */
+					if(obj.guid == req.params.resource_id){
+						res = obj;
+					} else {
+						for(var i = 0; i < obj.items.length; i++){
+							/* Is the item the target? */
+							if(obj.items[i].guid == req.params.resource_id){
+								breadcrumbs.unshift(obj.items[i]);
+								res = obj.items[i];
+							}
+							else if(obj.items[i].type == 'folder'){
+								var ret = find_resource(obj.items[i]);
+								if(ret != null) {
+									breadcrumbs.unshift(obj.items[i]);
+									res = ret;
+								}
+							}
+						}
+					}
+					return res;
+				}
+				
+				var folder = find_resource(user[0].resources);
+				if(folder == null){
+					return res.status(400).json({message: "Resource with id '" + resource_id + "' doesn't exist."});
+				}
+				/* Push root to beginning of breadcurmbs array. */
+				breadcrumbs.unshift(user[0].resources);
+				
+				/* Check if user is authorized to access resource through sharing. */
+				var found_flag = false;
+				for(var i = 0; i < breadcrumbs.length; i++){
+					if(typeof breadcrumbs[i]["sharing"] != 'undefined'){
+						for(var j = 0; j < breadcrumbs[i].sharing.length; j++){
+							if(breadcrumbs[i].sharing[j]._id == req.client_id)
+								found_flag = true;
+						}
+					}
+				}
+				
+				if(owner_id != req.client_id && found_flag == false){
+					return res.status(400).json({message: "You don't have access to this resource."});
+				}
+				
+			/* Check if email exists. */
+			Users.find({email: email}, function(err, user_){
+				console.log(user);
+				if(err){
+					return res.status(400).json({message: err});
+				} else if(user_.length == 0){
+					return res.status(400).json({message: "Email '" + email + "' is not associated with a user."});
+				} else if (user_.length > 0){
+
+			
+
+					/* Update the target resource. */
+					for(var i = 0; i < folder.items.length; i++){
+						if(folder.items[i].guid == target_id){
+							var found_flag = false;
+							for(var j = 0; j < folder.items[i].sharing.length; j++){
+								if(folder.items[i].sharing[j].email == email){
+									found_flag = true;
+								}
+							}
+							if(found_flag){
+								return res.status(400).json({message: 'You have already shared this resource with ' + email});
+							} else if (!found_flag){
+								folder.items[i].sharing.push({email: user_[0].email, _id: user_[0]._id});
+							}
+						}
+						
+					}
+
+						const finalUser = new Users(user[0]);
+						console.log(finalUser);
+						return finalUser.save().then(()=> res.json(folder));
+				}
+			});
+			} 
+		})
+	} else {
+		return res.json({error: "owner_id '" + owner_id + "' is invalid."});
+	}
 
 });
 

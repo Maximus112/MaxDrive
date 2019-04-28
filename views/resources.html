@@ -313,11 +313,16 @@ var http_client = new HttpClient();
 				_this.this_breadcrumbs.update(_this._data);
 				
 				if(resource.type == 'file'){
-					_this.add_row([resource.name, resource.type, "TBC", "TBC"], i, resource.guid);
+					_this.add_row([resource.name, resource.type, resource.sharing.length > 0, "TBC"], i, resource.guid);
 				} else if (resource.type == 'folder'){
 					for(var i = 0; i < resource.items.length; i++){
-						if(resource.items[i].type == 'folder' || (resource.items[i].type == 'file' && _this.config.files == true))
-							_this.add_row([resource.items[i].name, resource.items[i].type, "TBC", "TBC"], i, resource.items[i].guid);
+
+						if(resource.items[i].type == 'folder'){
+							_this.add_row([resource.items[i].name, resource.items[i].type, resource.items[i].sharing.length > 0, "TBC"], i, resource.items[i].guid);
+						} else if(resource.items[i].type == 'file' && _this.config.files == true){
+							_this.add_row([resource.items[i].name, resource.items[i].type, resource.items[i].sharing.length > 0, "TBC"], i, resource.items[i].guid);
+						}
+						
 					}
 				}
 			}
@@ -457,57 +462,29 @@ var http_client = new HttpClient();
 						generate_move_modal(resource_id);
 					}};
 					
+					/* Downloads the latest revision. */
 					var download_item = {"download": function(){
 						
 						/* The resource id - not to be confused with s3 id's. */
 						var guid = this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
-						
 						var latest_revision_s3_id = null;
-						for(var i = 0; i < latest_folder_json.items.length; i++){
-							if(latest_folder_json.items[i].guid == guid){
-								latest_revision_s3_id = latest_folder_json.items[i].revisions[latest_folder_json.items[i].revisions.length -1].guid;
+
+						if(latest_folder_json.type == 'file'){
+							latest_revision_s3_id = latest_folder_json.revisions[latest_folder_json.revisions.length -1].guid;
+						} else if(latest_folder_json.type == 'folder'){
+							for(var i = 0; i < latest_folder_json.items.length; i++){
+								if(latest_folder_json.items[i].guid == guid){
+									latest_revision_s3_id = latest_folder_json.items[i].revisions[latest_folder_json.items[i].revisions.length -1].guid;
+								}
 							}
 						}
-						
+
 						var s3_key = "<%- owner._id %>/" + latest_revision_s3_id;
-
-
 						http_client.post('/api/download_file', {key: s3_key}, function(res){
-
-							
-							var url = JSON.parse(res).url;
-
-							http_client.get(url, function(res){
-								console.log(res)
-							}, function(err){
-								console.log(err)
-							})
-
-							console.log(url);
-
-							window.open("pdfjs/web/viewer.html?file=" + JSON.parse(res).url, '_blank');
-
-							/*
-							res = JSON.parse(res);
-							console.log(res.data.Body);
-
-							var url = window.URL.createObjectURL(new Blob(res.data.Body.data, {type: 'application/pdf'}));
-				
-							console.log(url);
-							
-							let link=document.createElement('a');
-							link.href=url
-							link.download = res.filename;
-							link.click();
-							
-							*/
-				
-
+							window.open(JSON.parse(res).url, '_blank');
 						}, function(err){
-							console.log(err);
+							$notify(err, "error");
 						});
-
-					
 
 					}};
 					
@@ -519,26 +496,28 @@ var http_client = new HttpClient();
 						var folder = latest_folder_json;
 						
 						/* Has the target folder been reached? */
-						for(var i = 0; i < folder.items.length; i++){
-							if(folder.items[i].guid == guid){
-								folder = folder.items[i];
+						if(latest_folder_json.type == 'folder'){
+							for(var i = 0; i < folder.items.length; i++){
+								if(folder.items[i].guid == guid){
+									folder = folder.items[i];
+								}
 							}
 						}
 						
 						/* Generate Close Button. */
-						var close_btn = el_factory('button', {type: "button", class: "close", "data-dismiss": "modal", "aria-label": "Close"}, el_factory('span', {"aria-hidden": "true"}, "x"));
+						var close_btn = el_factory('button', {style: "margin: 15px 20px;", type: "button", class: "close", "data-dismiss": "modal", "aria-label": "Close"}, el_factory('span', {"aria-hidden": "true"}, "x"));
 						
 						/* Generate Title. */
-						var title = el_factory('label', {for: 'NewDocumentName', class: 'col-form-label', style: 'padding: 10px 0px; color: black; font-weight: normal; font-size: large;'}, "Version History");
+						var title = el_factory('label', {for: 'NewDocumentName', class: 'col-form-label', style: 'margin: 10px 20px; color: black; font-weight: normal; font-size: large;'}, "Version History");
 				
 						/* Generate Form. */
 						var form = el_factory('form', {id: 'modal_form'}, close_btn, title);
 						
 						/* Generate Modal. */
 						var modal = el_factory('div', {class: 'modal fade', style: 'top: 30% !important;', id: 'ver_hist_modal', tabindex: '-1', role: 'dialog', 'aria-hidden': 'true'},
-							el_factory('div', {class: 'modal-dialog', style: 'max-width: 350px !important;', role: 'document'},
-								el_factory('div', {class: 'modal-content', style: 'border-radius: 0; box-shadow: 0px 0px 10px 1px grey;'},
-									el_factory('div', {class: 'modal-body', id: 'ver-hist-modal-body'}, form)
+							el_factory('div', {class: 'modal-dialog', role: 'document'},
+								el_factory('div', {class: 'modal-content', style: 'border-radius: 0; box-shadow: 0px 0px 10px 1px grey; width: 100%;'},
+									el_factory('div', {class: 'modal-body', id: 'ver-hist-modal-body', style: "padding: 0px;", 'data-guid': guid}, form)
 								)
 							)
 						);
@@ -549,16 +528,22 @@ var http_client = new HttpClient();
 						var ver_hist_table = new datatable({
 							"action_btn": true,
 							"relocate": false,
-							"headers": ["Name", "Size", "Date"],
+							"headers": ["Name", "Size", "Date", ""],
 							"target": "ver-hist-modal-body",
 							"select_btn": false,
 							"breadcrumbs": false
 						});
 						
-						
-						
+						function bytesToSize(bytes) {
+						var sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+						if (bytes == 0) return '0 Byte';
+						var i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+						return Math.round(bytes / Math.pow(1024, i), 2) + ' ' + sizes[i];
+					};
+
 						for(var i = 0; i < folder.revisions.length; i++){
-							ver_hist_table.add_row([folder.revisions[i].name, folder.revisions[i].size, folder.revisions[i].date], i, folder.revisions[i].guid);
+							var date = new Date(folder.revisions[i].date);
+							ver_hist_table.add_row([folder.revisions[i].name, bytesToSize(folder.revisions[i].size), date.toLocaleDateString()], i, folder.revisions[i].guid);
 						}
 
 						/* Open the text modal. */
@@ -605,21 +590,28 @@ var http_client = new HttpClient();
 												ContentDisposition: "attachment; filename=" + file.name
 											};
 											
+											console.log(file);
+
+
 											s3.upload(params, function(err, res) {
 												if (err) {
 													$.notify(err.message, "error");
 													ret = -1;
 												}
 												
+												var s3_key = null;
+												if(params.Body.type == 'application/pdf'){
+													s3_key = objKey;
+												}	
+
 												var revision = {
 													"guid": guid,
 													"name": params.Body.name,
 													"extension": params.Body.type,
 													"size": params.Body.size,
-													"download": res.Location,
 													"modified": params.Body.lastModifiedDate,
 													"date": Date.now(),
-													"preview":""
+													"preview": s3_key
 												};
 												
 												var resource_id = _this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
@@ -651,48 +643,20 @@ var http_client = new HttpClient();
 					var download_revision = {
 						"download": function(){
 							
+							var s3_id = this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
 
-							var guid = this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
-							
-							var folder = latest_folder_json;
-							var url = null;
+							var s3_key = "<%- owner._id %>/" + s3_id;
+							http_client.post('/api/download_file', {key: s3_key}, function(res){
+								window.open(JSON.parse(res).url, '_blank');
+							}, function(err){
+								$notify(err, "error");
+							});
 
+						}
+					};
+					
+					
 			
-							for(var i = 0; i < folder.items.length; i++){
-								if(folder.items[i].type == 'file'){
-									console.log(folder.items[i].revisions);
-									for(var j = 0; j < folder.items[i].revisions.length; j++){
-										if(folder.items[i].revisions[j].guid == guid){
-											url = folder.items[i].revisions[j];
-										}
-									}
-								}
-							}
-
-							console.log(url);
-
-						
-								/*
-							function downloadURI(uri) {
-							  var link = document.createElement("a");
-							  link.href = uri;
-							  document.body.appendChild(link);
-							  link.click();
-							  document.body.removeChild(link);
-							  delete link;
-							}
-							
-							downloadURI(url);
-							*/
-						}
-					};
-					
-					
-					var view_revision = {
-						"view": function(){
-							
-						}
-					};
 					
 					var share = {
 						"share": function(){
@@ -746,56 +710,17 @@ var http_client = new HttpClient();
 								e.preventDefault();
 								/* Find user from email address. */
 								var email = document.getElementById('share-email-input').value;
-								console.log(email);
-								var xhttp = new XMLHttpRequest();
-								xhttp.onreadystatechange = function(){
-									if(this.status == 200 && this.readyState == 4){
-										var user = null;
-										var users = JSON.parse(this.responseText);
-										for(var i = 0; i < users.length; i++){
-											if(users[i].email == email){
-												user = users[i];
-											}
-										}
-										if(user == null){
-											return $.notify("User with email address " + email + " doesn't exist.", "error");
-										}
-										
-										for(var i = 0; i < folder.sharing.length; i++){
-											if(folder.sharing[i].email == email){
-												return $.notify("You have already shared this resource with " + email + ".", "error");
-											}
-										}
-										
-										/* Add user id and email to sharing array. */
-										folder.sharing.push(user);
-										
-										var xhttp = new XMLHttpRequest();
-										xhttp.onreadystatechange = function(){
-											if(this.status == 200 && this.readyState == 4){
-												/* Close the modal. */
-												$('#share_modal').modal('toggle');
-												latest_folder_json = JSON.parse(this.responseText);
-												$.notify("Resource shared with " + email + ".", "success");
-											}
-											else if(this.readyState == 4 && this.status != 200){
-												console.log(this.responseText);
-											}
-										}
 
-										xhttp.open("PUT", "/api/users/" + "<%- owner._id %>" + "/resources/" + latest_folder_json.guid);
-										xhttp.setRequestHeader("Content-Type", "application/json");
-										xhttp.send(JSON.stringify({target: folder}));
+								http_client.put('/api/users/<%-owner._id%>/resources/' + latest_folder_json.guid + '/share', {email: email, target_id: guid}, function(res){
+									$('#share_modal').modal('toggle');
+									latest_folder_json = JSON.parse(res);
+									$.notify("Resource shared with " + email + ".", "success");
+									console.log(res);
+								}, function(err){
+									//console.log(err);
+									$.notify(JSON.parse(err).message, "error");
+								});
 
-									}
-									else if(this.readyState == 4 && this.status != 200){
-											console.log(this.responseText);
-										}
-								}
-								
-								xhttp.open("GET", "/api/users");
-								xhttp.send();
-								
 							});
 							
 							/* Generate Modal. */
@@ -855,39 +780,108 @@ var http_client = new HttpClient();
 						}
 					};
 					
-					/* View the latest revision. TO DO - VIEW REVISIONS FROM REVISION TABLE */
+					/* View the latest revision */
 					var view = {
 						"view": function(){
 							
 							var guid = this.parentNode.parentNode.parentNode.parentNode.dataset.guid;
-						
-							var folder = latest_folder_json;
-							
-							console.log(guid);
-							
-							console.log(latest_folder_json);
-							
-							
-							
-							
-							for(var i = 0; i < latest_folder_json.items.length; i++){
-								if(latest_folder_json.items[i].guid == guid){
-									/* Get latest revision. */
-									var preview = latest_folder_json.items[i].revisions[latest_folder_json.items[i].revisions.length -1].preview;
-									/* If no preview is available. */
-									if(preview == ""){
-										var http_client = new HttpClient();
-										http_client.put("/api/users/" + "<%- owner._id %>" + "/resources/" + guid + '/generate_preview', {target: latest_folder_json.items[i], revision: latest_folder_json.items[i].revisions.length -1}, function(res){
-											console.log(res);
-											//latest_folder_json = res.folder;
-											//window.open("pdfjs/web/viewer.html?file=" + res.preview, '_blank');
-										});
-									} else {
-										/* Display the preview. */
-										window.open("pdfjs/web/viewer.html?file=" + preview, '_blank');
+
+							var file = latest_folder_json;
+
+							if(latest_folder_json.type == 'folder'){
+								for(var i = 0; i < latest_folder_json.items.length; i++){
+									if(latest_folder_json.items[i].guid == guid){
+										file =latest_folder_json.items[i];
 									}
 								}
 							}
+
+							var s3_id = null;
+							var index = file.revisions.length -1;
+
+							if(file.revisions[index].preview == null){
+								$.notify('Please wait while we generate a preview..', "info");
+								http_client.put("/api/users/" + "<%- owner._id %>" + "/resources/" + latest_folder_json.guid + '/generate_preview', {target: file, index: index, new_guid: uuidv4()}, function(res){
+									
+									console.log(JSON.parse(res));
+									s3_id = JSON.parse(res).key;
+									latest_folder_json = JSON.parse(res).data;
+									preview_pdf(s3_id);
+								}, function(err){
+									console.log(err);
+								});
+
+							} else {
+								console.log('Preview already available.')
+								console.log(file.revisions[index].preview);
+								s3_id = file.revisions[index].preview;
+								preview_pdf(s3_id);
+							}
+
+							function preview_pdf(key){
+								var key = "<%- owner._id %>/" + key;
+					
+								http_client.post('/api/download_file', {key: key}, function(res){
+									console.log(res);
+									window.open("pdfjs/web/viewer.html?file=" + encodeURIComponent(JSON.parse(res).url), '_blank');
+								}, function(err){
+									$.notify(err, "error");
+								});
+							}
+
+						}
+					};
+
+					/* Exactly the same as the previous function with a different guid. Consider creating a new function. */
+					var view_revision = {
+						"view": function(){
+							
+							var guid = this.parentNode.parentNode.parentNode.parentNode.parentNode.parentNode.parentNode.dataset.guid;
+							var index = this.parentNode.parentNode.parentNode.parentNode.dataset.index;
+
+							var file = latest_folder_json;
+
+							if(file.type == 'folder'){
+								for(var i = 0; i < file.items.length; i++){
+									if(file.items[i].guid == guid){
+										file = file.items[i];
+									}
+								}
+							}
+
+							var s3_id = null;
+							
+							if(file.revisions[index].preview == null){
+								$.notify('Please wait while we generate a preview..', "info");
+								http_client.put("/api/users/" + "<%- owner._id %>" + "/resources/" + latest_folder_json.guid + '/generate_preview', {target: file, index: index, new_guid: uuidv4()}, function(res){
+									
+									console.log(JSON.parse(res));
+									s3_id = JSON.parse(res).key;
+									latest_folder_json = JSON.parse(res).data;
+									preview_pdf(s3_id);
+								}, function(err){
+									console.log(err);
+								});
+
+							} else {
+								console.log('Preview already available.')
+								console.log(file.revisions[index].preview);
+								s3_id = file.revisions[index].preview;
+								preview_pdf(s3_id);
+							}
+
+							function preview_pdf(key){
+								var key = "<%- owner._id %>/" + key;
+					
+								http_client.post('/api/download_file', {key: key}, function(res){
+									console.log(res);
+									window.open("pdfjs/web/viewer.html?file=" + encodeURIComponent(JSON.parse(res).url), '_blank');
+								}, function(err){
+									$.notify(err, "error");
+								});
+							}
+							
+		
 						}
 					};
 					
@@ -1025,10 +1019,10 @@ var http_client = new HttpClient();
 										return $.notify(err.message, "error");
 									}
 									console.log({res: res});
-									var preview = "";
-									if(params.Body.type == "application/pdf"){
-										preview = res.Location;
-									}
+									var s3_id = null;
+									if(params.Body.type == 'application/pdf'){
+										s3_id = guid;
+									}	
 										
 									var payload = {
 											"type": 'file',
@@ -1040,10 +1034,9 @@ var http_client = new HttpClient();
 													"name": params.Body.name,
 													"extension": params.Body.type,
 													"size": params.Body.size,
-													"download": res.Location,
 													"modified": params.Body.lastModifiedDate,
 													"date": Date.now(),
-													"preview": preview,
+													"preview": s3_id,
 													"comments":"First revision."
 												}
 											]
